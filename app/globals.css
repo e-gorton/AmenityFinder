@@ -241,7 +241,7 @@ select:focus-visible {
 
 .selected-point {
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 11px;
   margin: 0 22px 14px;
@@ -295,6 +295,57 @@ select:focus-visible {
   color: #727b80;
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.65rem;
+}
+
+.point-lock-toggle {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border: 1px solid #929b9e;
+  background: #f7f6f2;
+  color: #45535a;
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+}
+
+.point-lock-toggle:hover {
+  border-color: var(--ink);
+  background: #eceeea;
+}
+
+.point-lock-toggle.is-moving {
+  border-color: var(--amber-dark);
+  background: #fff1cb;
+  color: #784900;
+}
+
+.lock-glyph {
+  position: relative;
+  width: 10px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  background: transparent;
+}
+
+.lock-glyph::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 1px;
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid currentColor;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+}
+
+.point-lock-toggle.is-moving .lock-glyph::before {
+  transform: translateX(4px) rotate(18deg);
+  transform-origin: bottom right;
 }
 
 .radius-badge {
@@ -639,6 +690,15 @@ select:focus-visible {
   background: #dce1dc;
 }
 
+.map-stage.is-point-locked .map-canvas {
+  cursor: grab;
+}
+
+.map-stage.is-moving-point .map-canvas,
+.map-stage.is-moving-point .map-canvas.leaflet-container {
+  cursor: crosshair;
+}
+
 .map-canvas .leaflet-tile-pane {
   filter: saturate(0.68) contrast(0.94) brightness(1.03);
 }
@@ -700,6 +760,18 @@ select:focus-visible {
   border-radius: 50%;
   background: var(--mint);
   box-shadow: 0 0 0 3px rgba(117, 201, 166, 0.2);
+}
+
+.map-topbar > span.is-locked {
+  border-color: rgba(46, 108, 83, 0.32);
+  background: rgba(235, 248, 240, 0.93);
+  color: #2f684f;
+}
+
+.map-topbar > span.is-moving {
+  border-color: rgba(183, 106, 0, 0.45);
+  background: rgba(255, 241, 203, 0.95);
+  color: #754600;
 }
 
 .map-prompt {
@@ -976,6 +1048,21 @@ select:focus-visible {
     max-width: 285px;
   }
 
+  .selected-point {
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+  }
+
+  .point-lock-toggle {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 5px;
+  }
+
+  .radius-badge {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
   .map-topbar {
     top: 12px;
     right: 12px;
@@ -1027,3 +1114,4 @@ select:focus-visible {
     animation-iteration-count: 1 !important;
   }
 }
+
