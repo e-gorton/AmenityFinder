@@ -52,6 +52,19 @@ type Amenity = {
 };
 
 const nearestOnlyTypes = new Set<AmenityType>(["Bank", "Post Office"]);
+const standaloneLeisureValues = new Set([
+  "playground",
+  "sports_centre",
+  "sports_club",
+  "fitness_centre",
+  "stadium",
+  "swimming_pool",
+]);
+const namedLeisureAreaValues = new Set([
+  "park",
+  "nature_reserve",
+  "recreation_ground",
+]);
 
 function isUkCoordinate(latitude: number, longitude: number) {
   return latitude >= 49.5 && latitude <= 61.2 && longitude >= -8.8 && longitude <= 2.1;
@@ -91,14 +104,20 @@ function classify(tags: Record<string, string>): AmenityType | null {
   if (amenity === "bank") return "Bank";
   if (shop === "chemist") return "Chemist";
   if (amenity === "community_centre") return "Community Centre";
-  if (shop === "convenience") return "Convenience Store";
+  if (["convenience", "supermarket"].includes(shop)) return "Convenience Store";
   if (
     ["clinic", "doctors", "health_post"].includes(amenity) ||
     ["clinic", "doctor", "centre"].includes(tags.healthcare)
   ) {
     return "Health Centre";
   }
-  if (tags.leisure) return "Leisure";
+  if (standaloneLeisureValues.has(tags.leisure)) return "Leisure";
+  if (
+    namedLeisureAreaValues.has(tags.leisure) &&
+    Boolean(tags.name?.trim() || tags["name:en"]?.trim())
+  ) {
+    return "Leisure";
+  }
   if (amenity === "library") return "Library";
   if (
     ["kindergarten", "childcare", "nursery"].includes(amenity) ||
@@ -181,8 +200,8 @@ function buildLocalQuery(latitude: number, longitude: number) {
   return `[out:json][timeout:35];
 (
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["amenity"~"^(atm|bank|community_centre|clinic|doctors|health_post|library|kindergarten|childcare|nursery|pharmacy|place_of_worship|post_box|post_office|school|pub|college|university)$"];
-  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["shop"~"^(chemist|convenience)$"];
-  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["leisure"~"^(park|playground|sports_centre|sports_club|fitness_centre|stadium|swimming_pool|garden|nature_reserve|recreation_ground)$"];
+  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["shop"~"^(chemist|convenience|supermarket)$"];
+  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["leisure"~"^(park|playground|sports_centre|sports_club|fitness_centre|stadium|swimming_pool|nature_reserve|recreation_ground)$"];
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["healthcare"~"^(clinic|doctor|centre)$"];
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["social_facility"="day_care"];
 );
@@ -267,7 +286,7 @@ function deduplicate(amenities: Amenity[]) {
           candidate.longitude,
           item.latitude,
           item.longitude,
-        ) < 35,
+        ) < (item.type === "Leisure" ? 250 : 35),
     );
 
     if (duplicateIndex === -1) {
@@ -359,10 +378,11 @@ export async function GET(request: Request) {
       .map((element) => toAmenity(element, latitude, longitude))
       .filter((item): item is Amenity => Boolean(item))
       .filter((item) => item.distanceM <= LOCAL_RADIUS_M);
+    const deduplicatedLocalCandidates = deduplicate(localCandidates);
 
     const nearest = new Map<AmenityType, Amenity>();
     for (const type of nearestOnlyTypes) {
-      const closest = localCandidates
+      const closest = deduplicatedLocalCandidates
         .filter((item) => item.type === type)
         .sort((a, b) => a.distanceM - b.distanceM)[0];
       if (closest) nearest.set(type, closest);
@@ -393,11 +413,16 @@ export async function GET(request: Request) {
       }
     }
 
-    const localStandardAmenities = localCandidates.filter(
-      (item) => !nearestOnlyTypes.has(item.type),
+    const closestPostBoxes = deduplicatedLocalCandidates
+      .filter((item) => item.type === "Post Box")
+      .sort((a, b) => a.distanceM - b.distanceM)
+      .slice(0, 2);
+    const localStandardAmenities = deduplicatedLocalCandidates.filter(
+      (item) => !nearestOnlyTypes.has(item.type) && item.type !== "Post Box",
     );
     const amenities = deduplicate([
       ...localStandardAmenities,
+      ...closestPostBoxes,
       ...nearest.values(),
     ]).sort((a, b) => a.distanceM - b.distanceM || a.name.localeCompare(b.name));
 
