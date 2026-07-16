@@ -8,6 +8,7 @@ A UK amenity screening tool for transport planning and development planning work
 - Bank and Post Office are nearest-only categories. The closest mapped feature is returned even when it is outside 2 km, using staged searches up to 100 km.
 - Features carrying closed, disused, former, abandoned or other lifecycle tags are excluded. Bank points must also have a mapped name, brand or operator plus an operational/contact detail such as opening hours, telephone, website or survey/check date; low-confidence legacy bank points are ignored.
 - Post Box is limited to the two closest mapped boxes within 2 km.
+- ATM includes both standalone OpenStreetMap `amenity=atm` features and ATMs mapped as `atm=yes` on another premises such as a bank, shop, post office, pub or petrol station.
 - Convenience Store includes both OpenStreetMap `shop=convenience` and `shop=supermarket` features.
 - Leisure includes recognisable facilities and explicitly named parks, nature reserves and recreation grounds; private-access features and unnamed broad land polygons are excluded.
 - Data is queried live from OpenStreetMap through the Overpass API.
@@ -30,7 +31,7 @@ Permitted `Type` values are: ATM, Bank, Chemist, Community Centre, Convenience S
 
 ## Data limitations
 
-This is a proportionate desktop screening tool. OpenStreetMap coverage, names, classifications and opening status vary. The lifecycle and bank-identity filters reduce stale results but cannot prove that a named facility is still trading. A nearest postcode is not necessarily the premises postcode. Critical facilities should be checked against operator or local authority information before being relied upon in a Transport Statement, Transport Assessment or planning submission. The 2 km radius is straight-line distance rather than a walk-network catchment.
+This is a proportionate desktop screening tool. OpenStreetMap coverage, names, classifications and opening status vary. The lifecycle and bank-identity filters reduce stale results but cannot prove that a named facility is still trading. Where an ATM is mapped as `atm=yes`, its point is the mapped centre of the host premises rather than necessarily the exact machine position. A nearest postcode is not necessarily the premises postcode. Critical facilities should be checked against operator or local authority information before being relied upon in a Transport Statement, Transport Assessment or planning submission. The 2 km radius is straight-line distance rather than a walk-network catchment.
 
 ## Development and deployment
 
