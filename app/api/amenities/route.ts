@@ -4,6 +4,7 @@ export const runtime = "edge";
 
 const LOCAL_RADIUS_M = 2_000;
 const FALLBACK_RADII_M = [20_000, 100_000];
+const VERIFIED_ATM_MAX_AGE_MS = 548 * 24 * 60 * 60 * 1_000;
 const OVERPASS_ENDPOINTS = [
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass-api.de/api/interpreter",
@@ -44,12 +45,68 @@ type Amenity = {
   type: AmenityType;
   name: string;
   postcode: string;
-  postcodeSource: "osm" | "nearest" | "unavailable";
+  postcodeSource: "osm" | "nearest" | "verified" | "unavailable";
+  source: "osm" | "verified";
   latitude: number;
   longitude: number;
   distanceM: number;
   outsideRadius: boolean;
 };
+
+type VerifiedAtm = {
+  id: string;
+  name: string;
+  postcode: string;
+  latitude: number;
+  longitude: number;
+  verifiedOn: string;
+};
+
+// OpenStreetMap does not currently tag these mapped premises as having ATMs.
+// The records below are retained separately so their provenance and review date
+// are explicit rather than implying that they came from OSM.
+const verifiedAtms: VerifiedAtm[] = [
+  {
+    id: "littleborough-coop-station-road",
+    name: "Co-op ATM",
+    postcode: "OL15 8AF",
+    latitude: 53.642541,
+    longitude: -2.096086,
+    verifiedOn: "2026-07-16",
+  },
+  {
+    id: "littleborough-church-street",
+    name: "Church Street ATM",
+    postcode: "OL15 8AU",
+    latitude: 53.643672,
+    longitude: -2.097829,
+    verifiedOn: "2026-07-16",
+  },
+  {
+    id: "littleborough-sainsburys-harehill-road",
+    name: "Sainsbury's ATM",
+    postcode: "OL15 9BA",
+    latitude: 53.644572,
+    longitude: -2.097044,
+    verifiedOn: "2026-07-16",
+  },
+  {
+    id: "littleborough-mfg-church-street",
+    name: "MFG Littleborough ATM",
+    postcode: "OL15 8JA",
+    latitude: 53.642609,
+    longitude: -2.100564,
+    verifiedOn: "2026-07-16",
+  },
+  {
+    id: "littleborough-featherstall-road",
+    name: "Featherstall Road ATM",
+    postcode: "OL15 8JZ",
+    latitude: 53.641858,
+    longitude: -2.106461,
+    verifiedOn: "2026-01-31",
+  },
+];
 
 const nearestOnlyTypes = new Set<AmenityType>(["Bank", "Post Office"]);
 const standaloneLeisureValues = new Set([
@@ -308,11 +365,42 @@ function createAmenity(
     name: nameOverride ?? mappedName(tags) ?? defaultName(type, tags),
     postcode,
     postcodeSource: postcode ? "osm" : "unavailable",
+    source: "osm",
     latitude,
     longitude,
     distanceM,
     outsideRadius: distanceM > LOCAL_RADIUS_M,
   };
+}
+
+function toVerifiedAtms(originLatitude: number, originLongitude: number) {
+  const newestPermittedVerification = Date.now() - VERIFIED_ATM_MAX_AGE_MS;
+
+  return verifiedAtms
+    .filter((record) => Date.parse(record.verifiedOn) >= newestPermittedVerification)
+    .map<Amenity>((record) => {
+      const distanceM = Math.round(
+        haversineMetres(
+          originLatitude,
+          originLongitude,
+          record.latitude,
+          record.longitude,
+        ),
+      );
+
+      return {
+        id: `verified-atm/${record.id}`,
+        type: "ATM",
+        name: record.name,
+        postcode: record.postcode,
+        postcodeSource: "verified",
+        source: "verified",
+        latitude: record.latitude,
+        longitude: record.longitude,
+        distanceM,
+        outsideRadius: distanceM > LOCAL_RADIUS_M,
+      };
+    });
 }
 
 function toAmenities(
@@ -437,15 +525,27 @@ function deduplicate(amenities: Amenity[]) {
 
   for (const item of [...amenities].sort((a, b) => a.distanceM - b.distanceM)) {
     const duplicateIndex = output.findIndex(
-      (candidate) =>
-        candidate.type === item.type &&
-        candidate.name.trim().toLowerCase() === item.name.trim().toLowerCase() &&
-        haversineMetres(
+      (candidate) => {
+        if (candidate.type !== item.type) return false;
+
+        const separationM = haversineMetres(
           candidate.latitude,
           candidate.longitude,
           item.latitude,
           item.longitude,
-        ) < (item.type === "Leisure" ? 250 : 35),
+        );
+        const sameName =
+          candidate.name.trim().toLowerCase() === item.name.trim().toLowerCase();
+        const verifiedAtmDuplicate =
+          item.type === "ATM" &&
+          candidate.source !== item.source &&
+          separationM < 40;
+
+        return (
+          (sameName && separationM < (item.type === "Leisure" ? 250 : 35)) ||
+          verifiedAtmDuplicate
+        );
+      },
     );
 
     if (duplicateIndex === -1) {
@@ -533,8 +633,12 @@ export async function GET(request: Request) {
 
   try {
     const localElements = await queryOverpass(buildLocalQuery(latitude, longitude));
-    const localCandidates = localElements
-      .flatMap((element) => toAmenities(element, latitude, longitude))
+    const localCandidates = [
+      ...localElements.flatMap((element) =>
+        toAmenities(element, latitude, longitude),
+      ),
+      ...toVerifiedAtms(latitude, longitude),
+    ]
       .filter((item) => item.distanceM <= LOCAL_RADIUS_M);
     const deduplicatedLocalCandidates = deduplicate(localCandidates);
 
@@ -591,7 +695,11 @@ export async function GET(request: Request) {
         radiusM: LOCAL_RADIUS_M,
         amenities,
         warnings,
-        sources: ["OpenStreetMap via Overpass API", "Postcodes.io"],
+        sources: [
+          "OpenStreetMap via Overpass API",
+          "Verified ATM register",
+          "Postcodes.io",
+        ],
       },
       {
         headers: {
