@@ -65,6 +65,33 @@ const namedLeisureAreaValues = new Set([
   "nature_reserve",
   "recreation_ground",
 ]);
+const inactiveLifecyclePrefixes = [
+  "abandoned:",
+  "closed:",
+  "demolished:",
+  "disused:",
+  "former:",
+  "razed:",
+  "removed:",
+  "was:",
+];
+const classifiedFeatureKeys = [
+  "amenity",
+  "healthcare",
+  "leisure",
+  "shop",
+  "social_facility",
+];
+const inactiveStatusValues = new Set([
+  "abandoned",
+  "closed",
+  "demolished",
+  "disused",
+  "former",
+  "razed",
+  "removed",
+  "vacant",
+]);
 
 function isUkCoordinate(latitude: number, longitude: number) {
   return latitude >= 49.5 && latitude <= 61.2 && longitude >= -8.8 && longitude <= 2.1;
@@ -96,12 +123,84 @@ function formatPostcode(value?: string) {
   return match ? `${match[1]} ${match[2]}` : value.trim().toUpperCase();
 }
 
+function isInactiveFeature(tags: Record<string, string>) {
+  if (
+    classifiedFeatureKeys.some((key) =>
+      inactiveLifecyclePrefixes.some((prefix) => `${prefix}${key}` in tags),
+    )
+  ) {
+    return true;
+  }
+
+  const lifecycleFlags = [
+    tags.abandoned,
+    tags.closed,
+    tags.demolished,
+    tags.disused,
+    tags.razed,
+    tags.removed,
+  ];
+  if (
+    lifecycleFlags.some((value) =>
+      ["1", "true", "yes"].includes(value?.trim().toLowerCase() ?? ""),
+    )
+  ) {
+    return true;
+  }
+
+  const statusValues = [
+    tags.lifecycle,
+    tags.operational_status,
+    tags.state,
+    tags.status,
+  ];
+  if (
+    statusValues.some((value) =>
+      inactiveStatusValues.has(value?.trim().toLowerCase() ?? ""),
+    )
+  ) {
+    return true;
+  }
+
+  return tags.opening_hours?.trim().toLowerCase() === "closed";
+}
+
+function hasMappedIdentity(tags: Record<string, string>) {
+  return Boolean(
+    tags.name?.trim() ||
+      tags["name:en"]?.trim() ||
+      tags.brand?.trim() ||
+      tags.operator?.trim(),
+  );
+}
+
+function hasBankOperationalDetails(tags: Record<string, string>) {
+  return Boolean(
+    tags.opening_hours?.trim() ||
+      tags.phone?.trim() ||
+      tags["contact:phone"]?.trim() ||
+      tags.website?.trim() ||
+      tags["contact:website"]?.trim() ||
+      tags.branch?.trim() ||
+      tags.check_date?.trim() ||
+      tags["check_date:amenity"]?.trim() ||
+      tags.survey_date?.trim(),
+  );
+}
+
 function classify(tags: Record<string, string>): AmenityType | null {
+  if (isInactiveFeature(tags)) return null;
+
   const amenity = tags.amenity;
   const shop = tags.shop;
 
   if (amenity === "atm") return "ATM";
-  if (amenity === "bank") return "Bank";
+  // Bank-branch mapping becomes stale quickly. Require both an identifiable
+  // operator and at least one operational/contact detail rather than accepting a
+  // bare amenity=bank point left behind after a closure.
+  if (amenity === "bank") {
+    return hasMappedIdentity(tags) && hasBankOperationalDetails(tags) ? "Bank" : null;
+  }
   if (shop === "chemist") return "Chemist";
   if (amenity === "community_centre") return "Community Centre";
   if (["convenience", "supermarket"].includes(shop)) return "Convenience Store";
@@ -466,3 +565,4 @@ export async function GET(request: Request) {
     );
   }
 }
+
