@@ -15,7 +15,7 @@ const localBindingConfig = {
   name: "amenity-finder",
   main: "./worker/index.ts",
   compatibility_date: "2026-05-22",
-  compatibility_flags: ["nodejs_compat"],
+  compatibility_flags: ["nodejs_compat", "global_fetch_strictly_public"],
   d1_databases: d1
     ? [
         {
