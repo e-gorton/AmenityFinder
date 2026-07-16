@@ -273,17 +273,29 @@ function defaultName(type: AmenityType, tags: Record<string, string>) {
   return type;
 }
 
-function toAmenity(
+function mappedName(tags: Record<string, string>) {
+  return tags.name ?? tags["name:en"] ?? tags.brand ?? tags.operator;
+}
+
+function attachedAtmName(tags: Record<string, string>) {
+  const hostName = mappedName(tags)?.trim();
+  if (!hostName) return "ATM";
+  return /\b(?:atm|cash ?machine)\b/i.test(hostName) ? hostName : `${hostName} ATM`;
+}
+
+function createAmenity(
   element: OsmElement,
+  type: AmenityType,
   originLatitude: number,
   originLongitude: number,
+  idSuffix = "",
+  nameOverride?: string,
 ): Amenity | null {
   const tags = element.tags ?? {};
-  const type = classify(tags);
   const latitude = element.lat ?? element.center?.lat;
   const longitude = element.lon ?? element.center?.lon;
 
-  if (!type || latitude === undefined || longitude === undefined) return null;
+  if (latitude === undefined || longitude === undefined) return null;
 
   const distanceM = Math.round(
     haversineMetres(originLatitude, originLongitude, latitude, longitude),
@@ -291,14 +303,9 @@ function toAmenity(
   const postcode = formatPostcode(tags["addr:postcode"] ?? tags.postal_code);
 
   return {
-    id: `${element.type}/${element.id}`,
+    id: `${element.type}/${element.id}${idSuffix}`,
     type,
-    name:
-      tags.name ??
-      tags["name:en"] ??
-      tags.brand ??
-      tags.operator ??
-      defaultName(type, tags),
+    name: nameOverride ?? mappedName(tags) ?? defaultName(type, tags),
     postcode,
     postcodeSource: postcode ? "osm" : "unavailable",
     latitude,
@@ -306,6 +313,45 @@ function toAmenity(
     distanceM,
     outsideRadius: distanceM > LOCAL_RADIUS_M,
   };
+}
+
+function toAmenities(
+  element: OsmElement,
+  originLatitude: number,
+  originLongitude: number,
+): Amenity[] {
+  const tags = element.tags ?? {};
+  if (isInactiveFeature(tags)) return [];
+
+  const amenities: Amenity[] = [];
+  const primaryType = classify(tags);
+  if (primaryType) {
+    const primary = createAmenity(
+      element,
+      primaryType,
+      originLatitude,
+      originLongitude,
+    );
+    if (primary) amenities.push(primary);
+  }
+
+  const atmIsMappedOnCredibleHost =
+    tags.atm?.trim().toLowerCase() === "yes" &&
+    primaryType !== "ATM" &&
+    (tags.amenity !== "bank" || primaryType === "Bank");
+  if (atmIsMappedOnCredibleHost) {
+    const attachedAtm = createAmenity(
+      element,
+      "ATM",
+      originLatitude,
+      originLongitude,
+      "#atm",
+      attachedAtmName(tags),
+    );
+    if (attachedAtm) amenities.push(attachedAtm);
+  }
+
+  return amenities;
 }
 
 function buildLocalQuery(latitude: number, longitude: number) {
@@ -316,6 +362,7 @@ function buildLocalQuery(latitude: number, longitude: number) {
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["leisure"~"^(park|playground|sports_centre|sports_club|fitness_centre|stadium|swimming_pool|nature_reserve|recreation_ground)$"];
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["healthcare"~"^(clinic|doctor|centre)$"];
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["social_facility"="day_care"];
+  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["atm"="yes"];
 );
 out center;`;
 }
@@ -487,8 +534,7 @@ export async function GET(request: Request) {
   try {
     const localElements = await queryOverpass(buildLocalQuery(latitude, longitude));
     const localCandidates = localElements
-      .map((element) => toAmenity(element, latitude, longitude))
-      .filter((item): item is Amenity => Boolean(item))
+      .flatMap((element) => toAmenities(element, latitude, longitude))
       .filter((item) => item.distanceM <= LOCAL_RADIUS_M);
     const deduplicatedLocalCandidates = deduplicate(localCandidates);
 
@@ -508,8 +554,7 @@ export async function GET(request: Request) {
         buildNearestQuery(latitude, longitude, radius, missingTypes),
       );
       const fallbackCandidates = fallbackElements
-        .map((element) => toAmenity(element, latitude, longitude))
-        .filter((item): item is Amenity => Boolean(item));
+        .flatMap((element) => toAmenities(element, latitude, longitude));
 
       for (const type of missingTypes) {
         const closest = fallbackCandidates
