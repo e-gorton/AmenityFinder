@@ -33,7 +33,7 @@ type Amenity = {
   type: AmenityType;
   name: string;
   postcode: string;
-  postcodeSource: "osm" | "nearest" | "unavailable";
+  postcodeSource: "osm" | "nearest" | "verified" | "unavailable";
   latitude: number;
   longitude: number;
   distanceM: number;
@@ -512,6 +512,7 @@ export default function Home() {
                         <span>
                           {item.postcode}
                           {item.postcodeSource === "nearest" ? <sup title="Nearest postcode to the mapped point">†</sup> : null}
+                          {item.postcodeSource === "verified" ? <sup title="Reviewed supplementary ATM record">‡</sup> : null}
                         </span>
                       </span>
                       <span className={`distance ${item.outsideRadius ? "outside" : ""}`}>
@@ -531,13 +532,14 @@ export default function Home() {
             <p className="export-note">
               Fields: <code>Type</code>, <code>Name</code>, <code>Postcode</code> ·
               WGS 84 (EPSG:4326). † nearest postcode where OSM has no premises
-              postcode.
+              postcode; ‡ reviewed supplementary ATM record.
             </p>
           </section>
         ) : null}
 
         <footer className="panel-footer">
-          Amenity data © OpenStreetMap contributors · Postcodes by Postcodes.io
+          Amenity data © OpenStreetMap contributors plus verified ATM locations ·
+          Postcodes by Postcodes.io
         </footer>
       </aside>
 
@@ -578,7 +580,7 @@ export default function Home() {
           <span><i className="legend-radius" /> 2 km radius</span>
           <span><i className="legend-nearest" /> Nearest exception</span>
         </div>
-        <div className="map-scale-note">Results use mapped OpenStreetMap features; verify critical facilities before reporting.</div>
+        <div className="map-scale-note">Results use mapped OpenStreetMap features plus verified ATM supplements; verify critical facilities before reporting.</div>
       </section>
     </main>
   );
