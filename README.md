@@ -6,6 +6,9 @@ A UK amenity screening tool for transport planning and development planning work
 
 - All standard amenity types are returned within a fixed 2 km straight-line radius.
 - Bank and Post Office are nearest-only categories. The closest mapped feature is returned even when it is outside 2 km, using staged searches up to 100 km.
+- Post Box is limited to the two closest mapped boxes within 2 km.
+- Convenience Store includes both OpenStreetMap `shop=convenience` and `shop=supermarket` features.
+- Leisure includes recognisable facilities and explicitly named parks, nature reserves and recreation grounds; unnamed broad land polygons are excluded.
 - Data is queried live from OpenStreetMap through the Overpass API.
 - `addr:postcode` or `postal_code` is used where it exists in OpenStreetMap. Where it is absent, the nearest postcode is requested from Postcodes.io and marked with a dagger in the interface.
 - Points are exported in WGS 84 longitude/latitude coordinates (EPSG:4326).
