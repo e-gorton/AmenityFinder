@@ -84,6 +84,8 @@ export default function Home() {
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
   const centreLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const resultsLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const pointRef = useRef<Point | null>(null);
+  const moveModeRef = useRef(false);
 
   const [mapReady, setMapReady] = useState(false);
   const [point, setPoint] = useState<Point | null>(null);
@@ -94,6 +96,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [finding, setFinding] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"All" | AmenityType>("All");
+  const [moveMode, setMoveMode] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -117,11 +120,16 @@ export default function Home() {
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
       map.on("click", (event: import("leaflet").LeafletMouseEvent) => {
+        if (pointRef.current && !moveModeRef.current) return;
+
         const selectedPoint = {
           latitude: event.latlng.lat,
           longitude: event.latlng.lng,
         };
+        pointRef.current = selectedPoint;
+        moveModeRef.current = false;
         setPoint(selectedPoint);
+        setMoveMode(false);
         setPointName("Dropped pin");
         setCoordinateInput(
           `${selectedPoint.latitude.toFixed(8)}, ${selectedPoint.longitude.toFixed(8)}`,
@@ -226,13 +234,23 @@ export default function Home() {
   const outsideCount = amenities.filter((item) => item.outsideRadius).length;
 
   function selectPoint(nextPoint: Point, name: string, zoom = 14) {
+    pointRef.current = nextPoint;
+    moveModeRef.current = false;
     setPoint(nextPoint);
+    setMoveMode(false);
     setPointName(name);
     setCoordinateInput(`${nextPoint.latitude}, ${nextPoint.longitude}`);
     setAmenities([]);
     setWarnings([]);
     setError("");
     mapRef.current?.setView([nextPoint.latitude, nextPoint.longitude], zoom);
+  }
+
+  function toggleMoveMode() {
+    if (!point) return;
+    const nextMoveMode = !moveModeRef.current;
+    moveModeRef.current = nextMoveMode;
+    setMoveMode(nextMoveMode);
   }
 
   function locateCoordinates(event: FormEvent<HTMLFormElement>) {
@@ -384,7 +402,13 @@ export default function Home() {
             <small id="coordinate-hint">Paste coordinates and press Enter</small>
           </form>
           <div className="location-actions">
-            <span className="or-label">Or click anywhere on the map to set the point</span>
+            <span className="or-label">
+              {!point
+                ? "Or click anywhere on the map to set the point"
+                : moveMode
+                  ? "Click the map once to reposition; the point will relock automatically"
+                  : "The centre point is locked to protect the current results"}
+            </span>
           </div>
         </section>
 
@@ -395,6 +419,17 @@ export default function Home() {
             <strong>{pointName}</strong>
             <span>{point ? coordinateLabel(point) : "Awaiting a map point"}</span>
           </div>
+          {point ? (
+            <button
+              type="button"
+              className={`point-lock-toggle ${moveMode ? "is-moving" : ""}`}
+              onClick={toggleMoveMode}
+              aria-pressed={moveMode}
+            >
+              <span className="lock-glyph" aria-hidden="true" />
+              {moveMode ? "Cancel" : "Move point"}
+            </button>
+          ) : null}
           <div className="radius-badge">
             <b>2</b>
             <span>km</span>
@@ -506,20 +541,35 @@ export default function Home() {
         </footer>
       </aside>
 
-      <section className="map-stage" aria-label="Amenity search map">
+      <section
+        className={`map-stage ${moveMode ? "is-moving-point" : point ? "is-point-locked" : ""}`}
+        aria-label="Amenity search map"
+      >
         <div className="map-topbar">
           <span>
             <i aria-hidden="true" /> UK amenity coverage
           </span>
-          <span>{mapReady ? "Map ready" : "Loading map…"}</span>
+          <span className={moveMode ? "is-moving" : point ? "is-locked" : ""}>
+            {!mapReady
+              ? "Loading map…"
+              : moveMode
+                ? "Click map to move point"
+                : point
+                  ? "Centre point locked"
+                  : "Map ready"}
+          </span>
         </div>
         <div ref={mapContainerRef} className="map-canvas" />
 
-        {!point ? (
+        {!point || moveMode ? (
           <div className="map-prompt" aria-hidden="true">
-            <span>+</span>
-            <strong>Drop the site centre</strong>
-            <small>Click the map to place a 2 km search radius</small>
+            <span>{moveMode ? "↗" : "+"}</span>
+            <strong>{moveMode ? "Choose the new centre" : "Drop the site centre"}</strong>
+            <small>
+              {moveMode
+                ? "Click once to move the point and lock it again"
+                : "Click the map to place a 2 km search radius"}
+            </small>
           </div>
         ) : null}
 
@@ -533,3 +583,4 @@ export default function Home() {
     </main>
   );
 }
+
