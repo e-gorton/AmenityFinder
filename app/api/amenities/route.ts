@@ -111,8 +111,10 @@ function classify(tags: Record<string, string>): AmenityType | null {
   ) {
     return "Health Centre";
   }
-  if (standaloneLeisureValues.has(tags.leisure)) return "Leisure";
+  const leisureIsPrivate = ["private", "no"].includes(tags.access);
+  if (!leisureIsPrivate && standaloneLeisureValues.has(tags.leisure)) return "Leisure";
   if (
+    !leisureIsPrivate &&
     namedLeisureAreaValues.has(tags.leisure) &&
     Boolean(tags.name?.trim() || tags["name:en"]?.trim())
   ) {
@@ -155,9 +157,20 @@ function classify(tags: Record<string, string>): AmenityType | null {
   return null;
 }
 
-function defaultName(type: AmenityType) {
+function defaultName(type: AmenityType, tags: Record<string, string>) {
   if (type === "Public House") return "Public House";
   if (type === "Place of Worship") return "Place of Worship";
+  if (type === "Leisure") {
+    const leisureNames: Record<string, string> = {
+      playground: "Playground",
+      sports_centre: "Sports Centre",
+      sports_club: "Sports Club",
+      fitness_centre: "Fitness Centre",
+      stadium: "Stadium",
+      swimming_pool: "Swimming Pool",
+    };
+    return leisureNames[tags.leisure] ?? "Leisure";
+  }
   return type;
 }
 
@@ -186,7 +199,7 @@ function toAmenity(
       tags["name:en"] ??
       tags.brand ??
       tags.operator ??
-      defaultName(type),
+      defaultName(type, tags),
     postcode,
     postcodeSource: postcode ? "osm" : "unavailable",
     latitude,
