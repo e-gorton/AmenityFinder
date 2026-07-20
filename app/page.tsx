@@ -2,6 +2,14 @@
 
 import type { CSSProperties, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import proj4 from "proj4";
+
+const WGS84_CRS = "EPSG:4326";
+const BNG_CRS = "EPSG:27700";
+proj4.defs(
+  BNG_CRS,
+  "+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +towgs84=446.448,-125.157,542.06,0.1502,0.247,0.8421,-20.4894 +units=m +no_defs",
+);
 
 type AmenityType =
   | "ATM"
@@ -355,21 +363,38 @@ export default function Home() {
     const geoJson = {
       type: "FeatureCollection",
       name: "Facilities and Services",
-      features: amenities.map((item) => ({
-        type: "Feature",
-        id: item.id,
-        geometry: {
-          type: "Point",
-          coordinates: [item.longitude, item.latitude],
-        },
-        properties: {
-          Type: item.type,
-          Name: item.name,
-          Postcode: item.postcode,
-          Distance_m: item.distanceM,
-          Outside_2km: item.outsideRadius,
-        },
-      })),
+      crs: {
+        type: "name",
+        properties: { name: "urn:ogc:def:crs:EPSG::27700" },
+      },
+      features: amenities.map((item) => {
+        const [rawEasting, rawNorthing] = proj4(WGS84_CRS, BNG_CRS, [
+          item.longitude,
+          item.latitude,
+        ]);
+        const easting = Number(rawEasting.toFixed(3));
+        const northing = Number(rawNorthing.toFixed(3));
+
+        return {
+          type: "Feature",
+          id: item.id,
+          geometry: {
+            type: "Point",
+            coordinates: [easting, northing],
+          },
+          properties: {
+            Type: item.type,
+            Name: item.name,
+            Postcode: item.postcode,
+            Easting: easting,
+            Northing: northing,
+            Longitude_WGS84: item.longitude,
+            Latitude_WGS84: item.latitude,
+            Distance_m: item.distanceM,
+            Outside_2km: item.outsideRadius,
+          },
+        };
+      }),
     };
     const blob = new Blob([JSON.stringify(geoJson, null, 2)], {
       type: "application/geo+json",
@@ -381,7 +406,7 @@ export default function Home() {
       .replace(/^-|-$/g, "")
       .toLowerCase();
     link.href = downloadUrl;
-    link.download = `amenities-${pointSlug || "site-centre"}.geojson`;
+    link.download = `amenities-${pointSlug || "site-centre"}-epsg27700.geojson`;
     link.click();
     URL.revokeObjectURL(downloadUrl);
   }
@@ -556,7 +581,7 @@ export default function Home() {
             </button>
             <p className="export-note">
               Fields: <code>Type</code>, <code>Name</code>, <code>Postcode</code> ·
-              WGS 84 (EPSG:4326). † nearest postcode where OSM has no premises
+              British National Grid (EPSG:27700). † nearest postcode where OSM has no premises
               postcode; § active NHS ODS organisation; ‡ reviewed supplementary amenity record.
             </p>
           </section>

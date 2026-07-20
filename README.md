@@ -21,7 +21,7 @@ A UK amenity screening tool for transport planning and development planning work
 - Most facility data is queried live from OpenStreetMap through the Overpass API. NHS ODS provides a national second source for active GP and pharmacy organisations. Confirmed facilities in other categories that are missing from OSM can be held in the reviewed supplementary register; these records retain a review date and expire automatically after 18 months.
 - OSM and NHS ODS are requested independently. If either service is temporarily unavailable, results from the remaining source and the reviewed register are returned with a warning. Repeat the search before export so the full result can be checked.
 - `addr:postcode` or `postal_code` is used where it exists in OpenStreetMap. Where it is absent, the nearest postcode is requested from Postcodes.io and marked with a dagger in the interface.
-- Points are exported in WGS 84 longitude/latitude coordinates (EPSG:4326).
+- Point geometry is exported in OSGB36 / British National Grid metres (EPSG:27700), with an explicit GeoJSON CRS declaration. Easting and northing are also included as attributes. Original WGS 84 longitude and latitude are retained as traceability attributes rather than geometry.
 
 ## GeoJSON fields
 
@@ -32,6 +32,10 @@ The first three properties deliberately match the existing QGIS symbology workfl
 | `Type` | Fixed category value used for categorised symbology |
 | `Name` | Mapped name, brand/operator, or a category fallback |
 | `Postcode` | Premises postcode where mapped, otherwise the nearest available postcode |
+| `Easting` | EPSG:27700 easting in metres |
+| `Northing` | EPSG:27700 northing in metres |
+| `Longitude_WGS84` | Original source longitude for traceability |
+| `Latitude_WGS84` | Original source latitude for traceability |
 | `Distance_m` | Straight-line distance from the selected point |
 | `Outside_2km` | `true` for a nearest-only exception beyond the local radius |
 
@@ -39,7 +43,7 @@ Permitted `Type` values are: ATM, Bank, Community Centre, Convenience Store, Hea
 
 ## Data limitations
 
-This is a proportionate desktop screening tool. OpenStreetMap coverage, names, classifications and opening status vary. NHS ODS confirms active organisation records but does not provide building coordinates through this workflow, so ODS-only points use postcode centroids and may not coincide with the entrance. Multiple organisations sharing one postcode are spread visually on the map; GeoJSON retains the source postcode-centroid coordinates. The lifecycle and bank-identity filters reduce stale OSM results but cannot prove that a named facility is still trading. A nearest postcode is not necessarily the premises postcode. Critical facilities should be checked against operator, NHS or local authority information before being relied upon in a Transport Statement, Transport Assessment or planning submission. A dispensing GP practice is listed as a pharmacy service but may not operate as a general-access community pharmacy and should be checked before issue. The 2 km radius is straight-line distance rather than a walk-network catchment.
+This is a proportionate desktop screening tool. OpenStreetMap coverage, names, classifications and opening status vary. NHS ODS confirms active organisation records but does not provide building coordinates through this workflow, so ODS-only points use postcode centroids and may not coincide with the entrance. Multiple organisations sharing one postcode are spread visually on the map; GeoJSON retains the source postcode-centroid coordinates. The WGS 84 to OSGB36 conversion uses the standard seven-parameter Helmert approximation. This is proportionate for amenity screening, but survey-control, access-design and other engineering coordinates should be transformed using OSTN15 in an appropriately configured GIS. The lifecycle and bank-identity filters reduce stale OSM results but cannot prove that a named facility is still trading. A nearest postcode is not necessarily the premises postcode. Critical facilities should be checked against operator, NHS or local authority information before being relied upon in a Transport Statement, Transport Assessment or planning submission. A dispensing GP practice is listed as a pharmacy service but may not operate as a general-access community pharmacy and should be checked before issue. The 2 km radius is straight-line distance rather than a walk-network catchment.
 
 ## Development and deployment
 

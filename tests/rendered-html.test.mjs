@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
+import proj4 from "proj4";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -44,7 +45,7 @@ test("server-renders the finished amenity finder", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
-test("keeps the QGIS schema and nearest exceptions explicit", async () => {
+test("keeps the QGIS schema in British National Grid", async () => {
   const [page, route] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/amenities/route.ts", import.meta.url), "utf8"),
@@ -54,8 +55,40 @@ test("keeps the QGIS schema and nearest exceptions explicit", async () => {
   assert.match(page, /Type: item\.type/);
   assert.match(page, /Name: item\.name/);
   assert.match(page, /Postcode: item\.postcode/);
+  assert.match(page, /urn:ogc:def:crs:EPSG::27700/);
+  assert.match(page, /coordinates: \[easting, northing\]/);
+  assert.match(page, /Easting: easting/);
+  assert.match(page, /Northing: northing/);
+  assert.match(page, /Longitude_WGS84: item\.longitude/);
+  assert.match(page, /Latitude_WGS84: item\.latitude/);
+  assert.match(page, /-epsg27700\.geojson/);
+  assert.doesNotMatch(page, /coordinates: \[item\.longitude, item\.latitude\]/);
   assert.match(route, /\["Bank", "Post Office"\]/);
   assert.match(route, /LOCAL_RADIUS_M = 2_000/);
+});
+
+test("projects representative UK coordinates to metre-based BNG values", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const definition = page.match(/proj4\.defs\(\s*BNG_CRS,\s*"([^"]+)"/);
+  assert.ok(definition, "EPSG:27700 projection definition should be present");
+  proj4.defs("EPSG:27700", definition[1]);
+
+  const longitude = -2.4694089154855368;
+  const latitude = 53.270213373695256;
+  const [easting, northing] = proj4("EPSG:4326", "EPSG:27700", [
+    longitude,
+    latitude,
+  ]);
+  assert.ok(easting > 300_000 && easting < 450_000);
+  assert.ok(northing > 300_000 && northing < 450_000);
+
+  const [roundTripLongitude, roundTripLatitude] = proj4(
+    "EPSG:27700",
+    "EPSG:4326",
+    [easting, northing],
+  );
+  assert.ok(Math.abs(roundTripLongitude - longitude) < 0.000001);
+  assert.ok(Math.abs(roundTripLatitude - latitude) < 0.000001);
 });
 
 test("keeps health centres, hospitals and pharmacies distinct", async () => {
