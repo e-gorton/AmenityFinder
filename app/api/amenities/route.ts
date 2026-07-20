@@ -584,16 +584,20 @@ async function queryOverpass(query: string): Promise<OsmElement[]> {
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
-      const response = await fetchWithTimeout(endpoint, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-          "User-Agent":
-            "AmenityFinder/1.0 (https://amenity-finder.e-gorton.workers.dev)",
+      const response = await fetchWithTimeout(
+        endpoint,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+            "User-Agent":
+              "AmenityFinder/1.0 (https://amenity-finder.e-gorton.workers.dev)",
+          },
+          body: new URLSearchParams({ data: query }).toString(),
         },
-        body: new URLSearchParams({ data: query }).toString(),
-      });
+        9_000,
+      );
 
       if (!response.ok) {
         throw new Error(`Overpass returned ${response.status}`);
@@ -729,7 +733,17 @@ export async function GET(request: Request) {
   const warnings: string[] = [];
 
   try {
-    const localElements = await queryOverpass(buildLocalQuery(latitude, longitude));
+    let osmAvailable = true;
+    let localElements: OsmElement[] = [];
+    try {
+      localElements = await queryOverpass(buildLocalQuery(latitude, longitude));
+    } catch {
+      osmAvailable = false;
+      warnings.push(
+        "Live OpenStreetMap data is temporarily unavailable. Reviewed supplementary locations are shown; try again before exporting.",
+      );
+    }
+
     const localCandidates = [
       ...localElements.flatMap((element) =>
         toAmenities(element, latitude, longitude),
@@ -747,7 +761,7 @@ export async function GET(request: Request) {
       if (closest) nearest.set(type, closest);
     }
 
-    for (const radius of FALLBACK_RADII_M) {
+    for (const radius of osmAvailable ? FALLBACK_RADII_M : []) {
       const missingTypes = [...nearestOnlyTypes].filter((type) => !nearest.has(type));
       if (!missingTypes.length) break;
 
@@ -766,7 +780,7 @@ export async function GET(request: Request) {
     }
 
     for (const type of nearestOnlyTypes) {
-      if (!nearest.has(type)) {
+      if (osmAvailable && !nearest.has(type)) {
         warnings.push(`No ${type.toLowerCase()} was mapped within 100 km.`);
       }
     }
@@ -793,7 +807,7 @@ export async function GET(request: Request) {
         amenities,
         warnings,
         sources: [
-          "OpenStreetMap via Overpass API",
+          ...(osmAvailable ? ["OpenStreetMap via Overpass API"] : []),
           "Reviewed supplementary amenity register",
           "Postcodes.io",
         ],

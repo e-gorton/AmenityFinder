@@ -15,6 +15,7 @@ A UK amenity screening tool for transport planning and development planning work
 - Co-located facilities are spread slightly on the interactive map so each marker remains selectable. GeoJSON exports retain the source coordinates.
 - Leisure includes recognisable facilities and explicitly named parks, nature reserves and recreation grounds; private-access features and unnamed broad land polygons are excluded.
 - Most data is queried live from OpenStreetMap through the Overpass API. Confirmed local facilities missing from OSM can be held in the reviewed supplementary register. Supplementary records retain a review date, are deduplicated when a corresponding OSM point is available and expire automatically after 18 months so that they must be checked again.
+- If all Overpass endpoints are temporarily unavailable, the app returns reviewed supplementary locations with a warning instead of failing the entire search. The search should be repeated before export so the full OSM result can be checked.
 - `addr:postcode` or `postal_code` is used where it exists in OpenStreetMap. Where it is absent, the nearest postcode is requested from Postcodes.io and marked with a dagger in the interface.
 - Points are exported in WGS 84 longitude/latitude coordinates (EPSG:4326).
 

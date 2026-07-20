@@ -82,6 +82,8 @@ test("includes reviewed Littleborough healthcare omissions", async () => {
   assert.match(route, /littleborough-group-practice/);
   assert.match(route, /littleborough-jhoots-pharmacy/);
   assert.match(route, /toVerifiedAmenities/);
+  assert.match(route, /Live OpenStreetMap data is temporarily unavailable/);
+  assert.match(route, /osmAvailable \? FALLBACK_RADII_M : \[\]/);
   assert.match(page, /Reviewed supplementary amenity record/);
   assert.match(page, /spreadMarkerCoordinates/);
 });
