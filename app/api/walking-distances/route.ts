@@ -7,6 +7,7 @@ const VALHALLA_MATRIX_URL =
 const MAX_DESTINATIONS = 100;
 const MATRIX_BATCH_SIZE = 40;
 const REQUEST_TIMEOUT_MS = 30_000;
+const WALKING_SPEED_KMH = 4.8;
 
 type RoutePoint = {
   id: string;
@@ -90,17 +91,16 @@ async function requestMatrix(
     return destinations.map((destination, index) => {
       const entry = row.find((candidate) => candidate.to_index === index) ?? row[index];
       const distanceKm = entry?.distance;
-      const durationSeconds = entry?.time;
       const routed =
         typeof distanceKm === "number" &&
-        Number.isFinite(distanceKm) &&
-        typeof durationSeconds === "number" &&
-        Number.isFinite(durationSeconds);
+        Number.isFinite(distanceKm);
 
       return {
         id: destination.id,
         distanceM: routed ? Math.round(distanceKm * 1_000) : null,
-        durationSeconds: routed ? Math.round(durationSeconds) : null,
+        durationSeconds: routed
+          ? Math.round((distanceKm / WALKING_SPEED_KMH) * 3_600)
+          : null,
         status: routed ? "routed" : "unreachable",
       };
     });
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
     const unreachableCount = results.filter((result) => result.status === "unreachable").length;
     return NextResponse.json({
       results,
-      source: "Valhalla pedestrian routing using OpenStreetMap",
+      source: "Valhalla pedestrian routing using OpenStreetMap; journey time at 4.8 km/h",
       warnings: unreachableCount
         ? [`No mapped pedestrian route was found for ${unreachableCount} destination${unreachableCount === 1 ? "" : "s"}.`]
         : [],

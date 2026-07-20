@@ -746,8 +746,8 @@ export default function Home() {
               ) : null}
               <p>
                 Uses the mapped OpenStreetMap pedestrian network, including walkable roads,
-                paths and recorded public rights of way. Check route suitability and legal
-                PRoW status before issue.
+                paths and recorded public rights of way. Journey times assume 4.8 km/h.
+                Check route suitability and legal PRoW status before issue.
               </p>
             </div>
           </section>

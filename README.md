@@ -32,12 +32,12 @@ After amenities have been returned, select **Calculate walking routes**. The cal
 | --- | --- |
 | `Straight_Line_m` | Direct distance used for the 2 km amenity search |
 | `Walking_Distance_m` | Valhalla pedestrian-network distance from the selected site centre |
-| `Walking_Time_min` | Modelled pedestrian journey time in minutes |
+| `Walking_Time_min` | Modelled pedestrian journey time in minutes, calculated at 4.8 km/h |
 | `Route_Status` | `routed` or `unreachable` |
 | `Easting`, `Northing` | Facility position in EPSG:27700 metres |
 | `Longitude_WGS84`, `Latitude_WGS84` | Original source coordinates for traceability |
 
-The walking calculation is optional and is deliberately independent of the GeoJSON workflow. If the public routing service is unavailable, the map and GeoJSON export remain usable.
+The walking calculation is optional and is deliberately independent of the GeoJSON workflow. Valhalla supplies the pedestrian-network distance and journey time is then calculated using a fixed walking speed of 4.8 km/h. If the public routing service is unavailable, the map and GeoJSON export remain usable.
 
 ## GeoJSON fields
 
