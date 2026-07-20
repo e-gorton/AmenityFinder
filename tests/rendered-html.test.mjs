@@ -70,3 +70,18 @@ test("keeps medical centres, hospitals and pharmacies distinct", async () => {
   assert.doesNotMatch(page, /\| "Chemist"/);
   assert.doesNotMatch(page, /\| "Health Centre"/);
 });
+
+test("includes reviewed Littleborough healthcare omissions", async () => {
+  const [page, route] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/amenities/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(route, /littleborough-cohens-hare-hill-road/);
+  assert.match(route, /littleborough-your-village-pharmacy/);
+  assert.match(route, /littleborough-group-practice/);
+  assert.match(route, /littleborough-jhoots-pharmacy/);
+  assert.match(route, /toVerifiedAmenities/);
+  assert.match(page, /Reviewed supplementary amenity record/);
+  assert.match(page, /spreadMarkerCoordinates/);
+});

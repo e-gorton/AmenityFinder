@@ -4,7 +4,7 @@ export const runtime = "edge";
 
 const LOCAL_RADIUS_M = 2_000;
 const FALLBACK_RADII_M = [20_000, 100_000];
-const VERIFIED_ATM_MAX_AGE_MS = 548 * 24 * 60 * 60 * 1_000;
+const VERIFIED_AMENITY_MAX_AGE_MS = 548 * 24 * 60 * 60 * 1_000;
 const OVERPASS_ENDPOINTS = [
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass-api.de/api/interpreter",
@@ -53,8 +53,9 @@ type Amenity = {
   outsideRadius: boolean;
 };
 
-type VerifiedAtm = {
+type VerifiedAmenity = {
   id: string;
+  type: AmenityType;
   name: string;
   postcode: string;
   latitude: number;
@@ -62,12 +63,13 @@ type VerifiedAtm = {
   verifiedOn: string;
 };
 
-// OpenStreetMap does not currently tag these mapped premises as having ATMs.
+// OpenStreetMap does not currently tag these confirmed facilities correctly.
 // The records below are retained separately so their provenance and review date
 // are explicit rather than implying that they came from OSM.
-const verifiedAtms: VerifiedAtm[] = [
+const verifiedAmenities: VerifiedAmenity[] = [
   {
     id: "littleborough-coop-station-road",
+    type: "ATM",
     name: "Co-op ATM",
     postcode: "OL15 8AF",
     latitude: 53.642541,
@@ -76,6 +78,7 @@ const verifiedAtms: VerifiedAtm[] = [
   },
   {
     id: "littleborough-church-street",
+    type: "ATM",
     name: "Church Street ATM",
     postcode: "OL15 8AU",
     latitude: 53.643672,
@@ -84,6 +87,7 @@ const verifiedAtms: VerifiedAtm[] = [
   },
   {
     id: "littleborough-sainsburys-harehill-road",
+    type: "ATM",
     name: "Sainsbury's ATM",
     postcode: "OL15 9BA",
     latitude: 53.644572,
@@ -92,6 +96,7 @@ const verifiedAtms: VerifiedAtm[] = [
   },
   {
     id: "littleborough-mfg-church-street",
+    type: "ATM",
     name: "MFG Littleborough ATM",
     postcode: "OL15 8JA",
     latitude: 53.642609,
@@ -100,11 +105,48 @@ const verifiedAtms: VerifiedAtm[] = [
   },
   {
     id: "littleborough-featherstall-road",
+    type: "ATM",
     name: "Featherstall Road ATM",
     postcode: "OL15 8JZ",
     latitude: 53.641858,
     longitude: -2.106461,
     verifiedOn: "2026-01-31",
+  },
+  {
+    id: "littleborough-cohens-hare-hill-road",
+    type: "Pharmacy",
+    name: "Cohens Chemist",
+    postcode: "OL15 9AB",
+    latitude: 53.64422059352503,
+    longitude: -2.096564336327915,
+    verifiedOn: "2026-07-20",
+  },
+  {
+    id: "littleborough-your-village-pharmacy",
+    type: "Pharmacy",
+    name: "Your Village Pharmacy",
+    postcode: "OL15 8AU",
+    latitude: 53.643568599220046,
+    longitude: -2.0980957182754323,
+    verifiedOn: "2026-07-20",
+  },
+  {
+    id: "littleborough-group-practice",
+    type: "Medical Centre",
+    name: "Littleborough Group Practice",
+    postcode: "OL15 8HF",
+    latitude: 53.64301962854432,
+    longitude: -2.103444099895111,
+    verifiedOn: "2026-07-20",
+  },
+  {
+    id: "littleborough-jhoots-pharmacy",
+    type: "Pharmacy",
+    name: "Jhoots Pharmacy",
+    postcode: "OL15 8DH",
+    latitude: 53.64301962854432,
+    longitude: -2.103444099895111,
+    verifiedOn: "2026-07-20",
   },
 ];
 
@@ -400,10 +442,10 @@ function createAmenity(
   };
 }
 
-function toVerifiedAtms(originLatitude: number, originLongitude: number) {
-  const newestPermittedVerification = Date.now() - VERIFIED_ATM_MAX_AGE_MS;
+function toVerifiedAmenities(originLatitude: number, originLongitude: number) {
+  const newestPermittedVerification = Date.now() - VERIFIED_AMENITY_MAX_AGE_MS;
 
-  return verifiedAtms
+  return verifiedAmenities
     .filter((record) => Date.parse(record.verifiedOn) >= newestPermittedVerification)
     .map<Amenity>((record) => {
       const distanceM = Math.round(
@@ -416,8 +458,8 @@ function toVerifiedAtms(originLatitude: number, originLongitude: number) {
       );
 
       return {
-        id: `verified-atm/${record.id}`,
-        type: "ATM",
+        id: `verified/${record.id}`,
+        type: record.type,
         name: record.name,
         postcode: record.postcode,
         postcodeSource: "verified",
@@ -584,20 +626,27 @@ function deduplicate(amenities: Amenity[]) {
         );
         const sameName =
           candidate.name.trim().toLowerCase() === item.name.trim().toLowerCase();
-        const verifiedAtmDuplicate =
-          item.type === "ATM" &&
+        const verifiedSupplementDuplicate =
           candidate.source !== item.source &&
-          separationM < 40;
+          separationM < 40 &&
+          (sameName ||
+            candidate.name === candidate.type ||
+            item.name === item.type);
 
         return (
           (sameName && separationM < (item.type === "Leisure" ? 250 : 35)) ||
-          verifiedAtmDuplicate
+          verifiedSupplementDuplicate
         );
       },
     );
 
     if (duplicateIndex === -1) {
       output.push(item);
+    } else if (
+      item.source === "verified" &&
+      output[duplicateIndex].source !== "verified"
+    ) {
+      output[duplicateIndex] = item;
     } else if (!output[duplicateIndex].postcode && item.postcode) {
       output[duplicateIndex] = item;
     }
@@ -685,7 +734,7 @@ export async function GET(request: Request) {
       ...localElements.flatMap((element) =>
         toAmenities(element, latitude, longitude),
       ),
-      ...toVerifiedAtms(latitude, longitude),
+      ...toVerifiedAmenities(latitude, longitude),
     ]
       .filter((item) => item.distanceM <= LOCAL_RADIUS_M);
     const deduplicatedLocalCandidates = deduplicate(localCandidates);
@@ -745,7 +794,7 @@ export async function GET(request: Request) {
         warnings,
         sources: [
           "OpenStreetMap via Overpass API",
-          "Verified ATM register",
+          "Reviewed supplementary amenity register",
           "Postcodes.io",
         ],
       },

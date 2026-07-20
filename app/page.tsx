@@ -78,6 +78,30 @@ function coordinateLabel(point: Point) {
   return `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`;
 }
 
+function spreadMarkerCoordinates(items: Amenity[], itemIndex: number): [number, number] {
+  const item = items[itemIndex];
+  const colocatedIndices = items
+    .map((candidate, index) => ({ candidate, index }))
+    .filter(
+      ({ candidate }) =>
+        Math.abs(candidate.latitude - item.latitude) < 0.00001 &&
+        Math.abs(candidate.longitude - item.longitude) < 0.00001,
+    )
+    .map(({ index }) => index);
+
+  if (colocatedIndices.length < 2) return [item.latitude, item.longitude];
+
+  const position = colocatedIndices.indexOf(itemIndex);
+  const angle = (2 * Math.PI * position) / colocatedIndices.length;
+  const offsetMetres = 10;
+  const latitudeOffset = (offsetMetres / 111_320) * Math.cos(angle);
+  const longitudeOffset =
+    (offsetMetres / (111_320 * Math.cos((item.latitude * Math.PI) / 180))) *
+    Math.sin(angle);
+
+  return [item.latitude + latitudeOffset, item.longitude + longitudeOffset];
+}
+
 export default function Home() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
@@ -194,7 +218,7 @@ export default function Home() {
 
     const markers = amenities.map((item, index) => {
       const colour = TYPE_COLOURS[item.type];
-      const marker = L.marker([item.latitude, item.longitude], {
+      const marker = L.marker(spreadMarkerCoordinates(amenities, index), {
         icon: L.divIcon({
           className: "amenity-marker-shell",
           html: `<span class="amenity-marker" style="--marker-colour:${colour}">${index + 1}</span>`,
@@ -512,7 +536,7 @@ export default function Home() {
                         <span>
                           {item.postcode}
                           {item.postcodeSource === "nearest" ? <sup title="Nearest postcode to the mapped point">†</sup> : null}
-                          {item.postcodeSource === "verified" ? <sup title="Reviewed supplementary ATM record">‡</sup> : null}
+                          {item.postcodeSource === "verified" ? <sup title="Reviewed supplementary amenity record">‡</sup> : null}
                         </span>
                       </span>
                       <span className={`distance ${item.outsideRadius ? "outside" : ""}`}>
@@ -532,13 +556,13 @@ export default function Home() {
             <p className="export-note">
               Fields: <code>Type</code>, <code>Name</code>, <code>Postcode</code> ·
               WGS 84 (EPSG:4326). † nearest postcode where OSM has no premises
-              postcode; ‡ reviewed supplementary ATM record.
+              postcode; ‡ reviewed supplementary amenity record.
             </p>
           </section>
         ) : null}
 
         <footer className="panel-footer">
-          Amenity data © OpenStreetMap contributors plus verified ATM locations ·
+          Amenity data © OpenStreetMap contributors plus reviewed supplementary locations ·
           Postcodes by Postcodes.io
         </footer>
       </aside>
@@ -580,7 +604,7 @@ export default function Home() {
           <span><i className="legend-radius" /> 2 km radius</span>
           <span><i className="legend-nearest" /> Nearest exception</span>
         </div>
-        <div className="map-scale-note">Results use mapped OpenStreetMap features plus verified ATM supplements; verify critical facilities before reporting.</div>
+        <div className="map-scale-note">Results use mapped OpenStreetMap features plus reviewed supplements; verify critical facilities before reporting.</div>
       </section>
     </main>
   );
