@@ -45,8 +45,9 @@ type Amenity = {
   type: AmenityType;
   name: string;
   postcode: string;
-  postcodeSource: "osm" | "nearest" | "verified" | "unavailable";
-  source: "osm" | "verified";
+  postcodeSource: "osm" | "nearest" | "ods" | "verified" | "unavailable";
+  source: "osm" | "nhs-ods" | "verified";
+  geometrySource: "osm" | "postcode-centroid" | "verified";
   latitude: number;
   longitude: number;
   distanceM: number;
@@ -61,6 +62,21 @@ type VerifiedAmenity = {
   latitude: number;
   longitude: number;
   verifiedOn: string;
+};
+
+type OdsOrganisation = {
+  Name?: string;
+  OrgId?: string;
+  Status?: string;
+  PostCode?: string;
+  PrimaryRoleId?: string;
+  PrimaryRoleDescription?: string;
+};
+
+const ODS_API_BASE = "https://directory.spineservices.nhs.uk/ORD/2-0-0";
+const ODS_ROLE_TYPES: Record<string, AmenityType> = {
+  RO177: "Medical Centre",
+  RO182: "Pharmacy",
 };
 
 // OpenStreetMap does not currently tag these confirmed facilities correctly.
@@ -111,42 +127,6 @@ const verifiedAmenities: VerifiedAmenity[] = [
     latitude: 53.641858,
     longitude: -2.106461,
     verifiedOn: "2026-01-31",
-  },
-  {
-    id: "littleborough-cohens-hare-hill-road",
-    type: "Pharmacy",
-    name: "Cohens Chemist",
-    postcode: "OL15 9AB",
-    latitude: 53.64422059352503,
-    longitude: -2.096564336327915,
-    verifiedOn: "2026-07-20",
-  },
-  {
-    id: "littleborough-your-village-pharmacy",
-    type: "Pharmacy",
-    name: "Your Village Pharmacy",
-    postcode: "OL15 8AU",
-    latitude: 53.643568599220046,
-    longitude: -2.0980957182754323,
-    verifiedOn: "2026-07-20",
-  },
-  {
-    id: "littleborough-group-practice",
-    type: "Medical Centre",
-    name: "Littleborough Group Practice",
-    postcode: "OL15 8HF",
-    latitude: 53.64301962854432,
-    longitude: -2.103444099895111,
-    verifiedOn: "2026-07-20",
-  },
-  {
-    id: "littleborough-jhoots-pharmacy",
-    type: "Pharmacy",
-    name: "Jhoots Pharmacy",
-    postcode: "OL15 8DH",
-    latitude: 53.64301962854432,
-    longitude: -2.103444099895111,
-    verifiedOn: "2026-07-20",
   },
 ];
 
@@ -435,6 +415,7 @@ function createAmenity(
     postcode,
     postcodeSource: postcode ? "osm" : "unavailable",
     source: "osm",
+    geometrySource: "osm",
     latitude,
     longitude,
     distanceM,
@@ -464,6 +445,7 @@ function toVerifiedAmenities(originLatitude: number, originLongitude: number) {
         postcode: record.postcode,
         postcodeSource: "verified",
         source: "verified",
+        geometrySource: "verified",
         latitude: record.latitude,
         longitude: record.longitude,
         distanceM,
@@ -579,6 +561,233 @@ async function fetchWithTimeout(
   }
 }
 
+function odsDisplayName(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
+    .replace(/\bNhs\b/g, "NHS")
+    .replace(/\bGp\b/g, "GP");
+}
+
+function outwardCode(postcode: string) {
+  return formatPostcode(postcode).split(" ")[0] ?? "";
+}
+
+function postcodeDistrictSamplePoints(latitude: number, longitude: number) {
+  const points = [{ latitude, longitude }];
+  const longitudeScale = 111_320 * Math.cos((latitude * Math.PI) / 180);
+
+  for (const radiusM of [1_000, 1_950]) {
+    for (let bearing = 0; bearing < 360; bearing += 45) {
+      const radians = (bearing * Math.PI) / 180;
+      points.push({
+        latitude: latitude + (Math.cos(radians) * radiusM) / 111_320,
+        longitude: longitude + (Math.sin(radians) * radiusM) / longitudeScale,
+      });
+    }
+  }
+
+  return points;
+}
+
+async function fetchNearbyOutwardCodes(latitude: number, longitude: number) {
+  const response = await fetchWithTimeout(
+    "https://api.postcodes.io/postcodes",
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        geolocations: postcodeDistrictSamplePoints(latitude, longitude).map(
+          (point) => ({ ...point, limit: 1, radius: 2_000 }),
+        ),
+      }),
+    },
+    12_000,
+  );
+
+  if (!response.ok) throw new Error(`Postcodes.io returned ${response.status}`);
+
+  const data = (await response.json()) as {
+    result?: Array<{ result?: Array<{ postcode?: string }> | null }>;
+  };
+  const codes = new Set<string>();
+  for (const entry of data.result ?? []) {
+    const code = outwardCode(entry.result?.[0]?.postcode ?? "");
+    if (code) codes.add(code);
+  }
+
+  if (!codes.size) throw new Error("No postcode districts were resolved");
+  return [...codes];
+}
+
+async function fetchOdsOrganisations(
+  outwardCodes: string[],
+  warnings: string[],
+) {
+  const results = await Promise.allSettled(
+    outwardCodes.map(async (code) => {
+      const params = new URLSearchParams({
+        PostCode: code,
+        Status: "Active",
+        Limit: "1000",
+      });
+      const response = await fetchWithTimeout(
+        `${ODS_API_BASE}/organisations?${params.toString()}`,
+        {
+          headers: {
+            Accept: "application/json",
+            "User-Agent":
+              "AmenityFinder/1.0 (https://amenity-finder.e-gorton.workers.dev)",
+          },
+        },
+        12_000,
+      );
+
+      if (!response.ok) throw new Error(`NHS ODS returned ${response.status}`);
+      const data = (await response.json()) as {
+        Organisations?: OdsOrganisation[];
+      };
+      return data.Organisations ?? [];
+    }),
+  );
+
+  const successful = results.filter(
+    (result): result is PromiseFulfilledResult<OdsOrganisation[]> =>
+      result.status === "fulfilled",
+  );
+  if (!successful.length) throw new Error("No NHS ODS district request succeeded");
+  if (successful.length !== results.length) {
+    warnings.push(
+      "NHS GP and pharmacy coverage may be incomplete because one postcode district did not respond.",
+    );
+  }
+
+  const organisations = new Map<string, OdsOrganisation>();
+  for (const result of successful) {
+    for (const organisation of result.value) {
+      if (
+        organisation.OrgId &&
+        organisation.PrimaryRoleId &&
+        ODS_ROLE_TYPES[organisation.PrimaryRoleId] &&
+        (!organisation.Status || organisation.Status.toLowerCase() === "active")
+      ) {
+        organisations.set(organisation.OrgId, organisation);
+      }
+    }
+  }
+
+  return [...organisations.values()];
+}
+
+async function geocodePostcodes(postcodes: string[]) {
+  const coordinates = new Map<
+    string,
+    { latitude: number; longitude: number }
+  >();
+
+  for (let offset = 0; offset < postcodes.length; offset += 100) {
+    const batch = postcodes.slice(offset, offset + 100);
+    const response = await fetchWithTimeout(
+      "https://api.postcodes.io/postcodes",
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ postcodes: batch }),
+      },
+      12_000,
+    );
+
+    if (!response.ok) throw new Error(`Postcodes.io returned ${response.status}`);
+    const data = (await response.json()) as {
+      result?: Array<{
+        query?: string;
+        result?: {
+          postcode?: string;
+          latitude?: number;
+          longitude?: number;
+        } | null;
+      }>;
+    };
+
+    for (const entry of data.result ?? []) {
+      const postcode = formatPostcode(entry.result?.postcode ?? entry.query);
+      const latitude = entry.result?.latitude;
+      const longitude = entry.result?.longitude;
+      if (
+        postcode &&
+        typeof latitude === "number" &&
+        typeof longitude === "number"
+      ) {
+        coordinates.set(postcode, { latitude, longitude });
+      }
+    }
+  }
+
+  return coordinates;
+}
+
+async function fetchNhsOdsAmenities(
+  originLatitude: number,
+  originLongitude: number,
+  warnings: string[],
+) {
+  const outwardCodes = await fetchNearbyOutwardCodes(
+    originLatitude,
+    originLongitude,
+  );
+  const organisations = await fetchOdsOrganisations(outwardCodes, warnings);
+  const postcodes = [
+    ...new Set(
+      organisations
+        .map((organisation) => formatPostcode(organisation.PostCode))
+        .filter(Boolean),
+    ),
+  ];
+  const coordinates = await geocodePostcodes(postcodes);
+
+  return organisations.flatMap<Amenity>((organisation) => {
+    const type = ODS_ROLE_TYPES[organisation.PrimaryRoleId ?? ""];
+    const postcode = formatPostcode(organisation.PostCode);
+    const coordinate = coordinates.get(postcode);
+    if (!type || !organisation.OrgId || !coordinate) return [];
+
+    const distanceM = Math.round(
+      haversineMetres(
+        originLatitude,
+        originLongitude,
+        coordinate.latitude,
+        coordinate.longitude,
+      ),
+    );
+    if (distanceM > LOCAL_RADIUS_M) return [];
+
+    return [
+      {
+        id: `ods/${organisation.OrgId}`,
+        type,
+        name: organisation.Name
+          ? odsDisplayName(organisation.Name)
+          : type,
+        postcode,
+        postcodeSource: "ods",
+        source: "nhs-ods",
+        geometrySource: "postcode-centroid",
+        latitude: coordinate.latitude,
+        longitude: coordinate.longitude,
+        distanceM,
+        outsideRadius: false,
+      },
+    ];
+  });
+}
+
 async function queryOverpass(query: string): Promise<OsmElement[]> {
   let lastError: unknown;
 
@@ -614,6 +823,73 @@ async function queryOverpass(query: string): Promise<OsmElement[]> {
   throw lastError ?? new Error("No Overpass endpoint was available");
 }
 
+function normalisedName(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function organisationNameKey(value: string) {
+  const genericWords = new Set([
+    "and",
+    "chemist",
+    "chemists",
+    "centre",
+    "center",
+    "gp",
+    "limited",
+    "ltd",
+    "medical",
+    "nhs",
+    "pharmacy",
+    "practice",
+    "surgery",
+    "the",
+  ]);
+
+  return normalisedName(value)
+    .split(" ")
+    .filter((word) => word && !genericWords.has(word))
+    .join(" ");
+}
+
+function mergeDuplicate(candidate: Amenity, item: Amenity) {
+  const ods = [candidate, item].find((record) => record.source === "nhs-ods");
+  const osm = [candidate, item].find((record) => record.source === "osm");
+  if (ods && osm) {
+    // ODS supplies the active organisation identity and premises postcode;
+    // retain the more precise OSM geometry when both describe the same place.
+    return {
+      ...ods,
+      latitude: osm.latitude,
+      longitude: osm.longitude,
+      distanceM: osm.distanceM,
+      outsideRadius: osm.outsideRadius,
+      geometrySource: "osm",
+    };
+  }
+
+  const sourcePriority: Record<Amenity["source"], number> = {
+    osm: 1,
+    "nhs-ods": 2,
+    verified: 3,
+  };
+  const preferred =
+    sourcePriority[item.source] > sourcePriority[candidate.source]
+      ? item
+      : candidate;
+  const alternative = preferred === item ? candidate : item;
+  return !preferred.postcode && alternative.postcode
+    ? {
+        ...preferred,
+        postcode: alternative.postcode,
+        postcodeSource: alternative.postcodeSource,
+      }
+    : preferred;
+}
+
 function deduplicate(amenities: Amenity[]) {
   const output: Amenity[] = [];
 
@@ -628,8 +904,16 @@ function deduplicate(amenities: Amenity[]) {
           item.latitude,
           item.longitude,
         );
-        const sameName =
-          candidate.name.trim().toLowerCase() === item.name.trim().toLowerCase();
+        const sameName = normalisedName(candidate.name) === normalisedName(item.name);
+        const crossSourceOdsPair =
+          candidate.source !== item.source &&
+          (candidate.source === "nhs-ods" || item.source === "nhs-ods");
+        const candidateKey = organisationNameKey(candidate.name);
+        const itemKey = organisationNameKey(item.name);
+        const sameOrganisationName =
+          Boolean(candidateKey) && candidateKey === itemKey;
+        const genericCrossSourceName =
+          candidate.name === candidate.type || item.name === item.type;
         const verifiedSupplementDuplicate =
           candidate.source !== item.source &&
           separationM < 40 &&
@@ -639,6 +923,10 @@ function deduplicate(amenities: Amenity[]) {
 
         return (
           (sameName && separationM < (item.type === "Leisure" ? 250 : 35)) ||
+          (crossSourceOdsPair &&
+            separationM < 400 &&
+            (sameName || sameOrganisationName)) ||
+          (crossSourceOdsPair && genericCrossSourceName && separationM < 100) ||
           verifiedSupplementDuplicate
         );
       },
@@ -646,17 +934,70 @@ function deduplicate(amenities: Amenity[]) {
 
     if (duplicateIndex === -1) {
       output.push(item);
-    } else if (
-      item.source === "verified" &&
-      output[duplicateIndex].source !== "verified"
-    ) {
-      output[duplicateIndex] = item;
-    } else if (!output[duplicateIndex].postcode && item.postcode) {
-      output[duplicateIndex] = item;
+    } else {
+      output[duplicateIndex] = mergeDuplicate(output[duplicateIndex], item);
     }
   }
 
   return output;
+}
+
+function alignSharedOdsPremises(
+  amenities: Amenity[],
+  originLatitude: number,
+  originLongitude: number,
+) {
+  const preciseOdsPremises = new Map<string, Amenity>();
+  for (const item of amenities) {
+    if (
+      item.source === "nhs-ods" &&
+      item.geometrySource === "osm" &&
+      item.postcode
+    ) {
+      preciseOdsPremises.set(formatPostcode(item.postcode), item);
+    }
+  }
+
+  return amenities.map((item) => {
+    if (
+      item.source !== "nhs-ods" ||
+      item.geometrySource !== "postcode-centroid" ||
+      !item.postcode
+    ) {
+      return item;
+    }
+
+    const premises = preciseOdsPremises.get(formatPostcode(item.postcode));
+    if (
+      !premises ||
+      premises.id === item.id ||
+      haversineMetres(
+        premises.latitude,
+        premises.longitude,
+        item.latitude,
+        item.longitude,
+      ) > 500
+    ) {
+      return item;
+    }
+
+    const distanceM = Math.round(
+      haversineMetres(
+        originLatitude,
+        originLongitude,
+        premises.latitude,
+        premises.longitude,
+      ),
+    );
+    return {
+      ...item,
+      latitude: premises.latitude,
+      longitude: premises.longitude,
+      distanceM,
+      outsideRadius: distanceM > LOCAL_RADIUS_M,
+      geometrySource: "osm" as const,
+    };
+  });
 }
 
 async function addNearestPostcodes(amenities: Amenity[], warnings: string[]) {
@@ -733,14 +1074,25 @@ export async function GET(request: Request) {
   const warnings: string[] = [];
 
   try {
-    let osmAvailable = true;
-    let localElements: OsmElement[] = [];
-    try {
-      localElements = await queryOverpass(buildLocalQuery(latitude, longitude));
-    } catch {
-      osmAvailable = false;
+    const [osmResult, odsResult] = await Promise.allSettled([
+      queryOverpass(buildLocalQuery(latitude, longitude)),
+      fetchNhsOdsAmenities(latitude, longitude, warnings),
+    ]);
+    const osmAvailable = osmResult.status === "fulfilled";
+    const odsAvailable = odsResult.status === "fulfilled";
+    const localElements =
+      osmResult.status === "fulfilled" ? osmResult.value : [];
+    const odsAmenities =
+      odsResult.status === "fulfilled" ? odsResult.value : [];
+
+    if (!osmAvailable) {
       warnings.push(
-        "Live OpenStreetMap data is temporarily unavailable. Reviewed supplementary locations are shown; try again before exporting.",
+        "Live OpenStreetMap data is temporarily unavailable. NHS ODS and reviewed supplementary locations are shown; try again before exporting.",
+      );
+    }
+    if (!odsAvailable) {
+      warnings.push(
+        "The NHS GP and pharmacy register is temporarily unavailable. OpenStreetMap results are shown; try again before exporting.",
       );
     }
 
@@ -748,10 +1100,15 @@ export async function GET(request: Request) {
       ...localElements.flatMap((element) =>
         toAmenities(element, latitude, longitude),
       ),
+      ...odsAmenities,
       ...toVerifiedAmenities(latitude, longitude),
     ]
       .filter((item) => item.distanceM <= LOCAL_RADIUS_M);
-    const deduplicatedLocalCandidates = deduplicate(localCandidates);
+    const deduplicatedLocalCandidates = alignSharedOdsPremises(
+      deduplicate(localCandidates),
+      latitude,
+      longitude,
+    );
 
     const nearest = new Map<AmenityType, Amenity>();
     for (const type of nearestOnlyTypes) {
@@ -808,6 +1165,7 @@ export async function GET(request: Request) {
         warnings,
         sources: [
           ...(osmAvailable ? ["OpenStreetMap via Overpass API"] : []),
+          ...(odsAvailable ? ["NHS Organisation Data Service"] : []),
           "Reviewed supplementary amenity register",
           "Postcodes.io",
         ],

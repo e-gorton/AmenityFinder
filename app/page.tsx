@@ -33,7 +33,7 @@ type Amenity = {
   type: AmenityType;
   name: string;
   postcode: string;
-  postcodeSource: "osm" | "nearest" | "verified" | "unavailable";
+  postcodeSource: "osm" | "nearest" | "ods" | "verified" | "unavailable";
   latitude: number;
   longitude: number;
   distanceM: number;
@@ -536,6 +536,7 @@ export default function Home() {
                         <span>
                           {item.postcode}
                           {item.postcodeSource === "nearest" ? <sup title="Nearest postcode to the mapped point">†</sup> : null}
+                          {item.postcodeSource === "ods" ? <sup title="Active NHS ODS organisation; postcode-centroid position is used where OSM has no matching geometry">§</sup> : null}
                           {item.postcodeSource === "verified" ? <sup title="Reviewed supplementary amenity record">‡</sup> : null}
                         </span>
                       </span>
@@ -556,14 +557,13 @@ export default function Home() {
             <p className="export-note">
               Fields: <code>Type</code>, <code>Name</code>, <code>Postcode</code> ·
               WGS 84 (EPSG:4326). † nearest postcode where OSM has no premises
-              postcode; ‡ reviewed supplementary amenity record.
+              postcode; § active NHS ODS organisation; ‡ reviewed supplementary amenity record.
             </p>
           </section>
         ) : null}
 
         <footer className="panel-footer">
-          Amenity data © OpenStreetMap contributors plus reviewed supplementary locations ·
-          Postcodes by Postcodes.io
+          Amenity data © OpenStreetMap contributors, NHS Organisation Data Service and reviewed supplementary locations · Postcodes by Postcodes.io
         </footer>
       </aside>
 

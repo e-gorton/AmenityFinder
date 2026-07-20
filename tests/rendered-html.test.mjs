@@ -71,19 +71,25 @@ test("keeps medical centres, hospitals and pharmacies distinct", async () => {
   assert.doesNotMatch(page, /\| "Health Centre"/);
 });
 
-test("includes reviewed Littleborough healthcare omissions", async () => {
+test("supplements OSM with the national NHS GP and pharmacy register", async () => {
   const [page, route] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/amenities/route.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(route, /littleborough-cohens-hare-hill-road/);
-  assert.match(route, /littleborough-your-village-pharmacy/);
-  assert.match(route, /littleborough-group-practice/);
-  assert.match(route, /littleborough-jhoots-pharmacy/);
+  assert.match(route, /directory\.spineservices\.nhs\.uk\/ORD\/2-0-0/);
+  assert.match(route, /RO177: "Medical Centre"/);
+  assert.match(route, /RO182: "Pharmacy"/);
+  assert.match(route, /fetchNhsOdsAmenities/);
+  assert.match(route, /Status: "Active"/);
+  assert.match(route, /postcodeDistrictSamplePoints/);
+  assert.match(route, /source: "nhs-ods"/);
+  assert.doesNotMatch(route, /littleborough-cohens-hare-hill-road/);
+  assert.doesNotMatch(route, /littleborough-group-practice/);
   assert.match(route, /toVerifiedAmenities/);
   assert.match(route, /Live OpenStreetMap data is temporarily unavailable/);
   assert.match(route, /osmAvailable \? FALLBACK_RADII_M : \[\]/);
+  assert.match(page, /Active NHS ODS organisation/);
   assert.match(page, /Reviewed supplementary amenity record/);
   assert.match(page, /spreadMarkerCoordinates/);
 });
