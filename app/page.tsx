@@ -11,7 +11,7 @@ type AmenityType =
   | "Hospital"
   | "Leisure"
   | "Library"
-  | "Medical Centre"
+  | "Health Centre"
   | "Nursery"
   | "Pharmacy"
   | "Place of Worship"
@@ -54,7 +54,7 @@ const TYPE_COLOURS: Record<AmenityType, string> = {
   Hospital: "#b51f2e",
   Leisure: "#2b8c6f",
   Library: "#3478b8",
-  "Medical Centre": "#d84f4f",
+  "Health Centre": "#d84f4f",
   Nursery: "#e8c93f",
   Pharmacy: "#3ca370",
   "Place of Worship": "#6d70c5",

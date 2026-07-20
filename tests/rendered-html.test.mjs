@@ -58,14 +58,14 @@ test("keeps the QGIS schema and nearest exceptions explicit", async () => {
   assert.match(route, /LOCAL_RADIUS_M = 2_000/);
 });
 
-test("keeps medical centres, hospitals and pharmacies distinct", async () => {
+test("keeps health centres, hospitals and pharmacies distinct", async () => {
   const [page, route] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/amenities/route.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /\| "Hospital"/);
-  assert.match(page, /\| "Medical Centre"/);
+  assert.match(page, /\| "Health Centre"/);
   assert.match(route, /const isHospitalTag =/);
   assert.match(route, /const isGenericClinicTag =/);
   assert.match(route, /isGenericClinicTag && nameLooksLikeMedicalCentre/);
@@ -73,12 +73,12 @@ test("keeps medical centres, hospitals and pharmacies distinct", async () => {
   assert.match(route, /nameLooksLikeMedicalCentre/);
   assert.match(route, /\["chemist", "pharmacy"\]\.includes\(shop\)/);
   assert.match(route, /healthcare === "pharmacy"/);
-  assert.match(route, /primaryType === "Medical Centre"/);
+  assert.match(route, /primaryType === "Health Centre"/);
   assert.match(route, /tags\.dispensing/);
   assert.match(route, /const isChildDayCare =/);
   assert.match(route, /tags\["social_facility:for"\]/);
   assert.doesNotMatch(page, /\| "Chemist"/);
-  assert.doesNotMatch(page, /\| "Health Centre"/);
+  assert.doesNotMatch(page, /\| "Medical Centre"/);
 });
 
 test("keeps every amenity category synchronised across API and interface", async () => {
@@ -95,7 +95,7 @@ test("keeps every amenity category synchronised across API and interface", async
     "Hospital",
     "Leisure",
     "Library",
-    "Medical Centre",
+    "Health Centre",
     "Nursery",
     "Pharmacy",
     "Place of Worship",
@@ -118,9 +118,9 @@ test("supplements OSM with the national NHS GP and pharmacy register", async () 
   ]);
 
   assert.match(route, /directory\.spineservices\.nhs\.uk\/ORD\/2-0-0/);
-  assert.match(route, /RO177: "Medical Centre"/);
+  assert.match(route, /RO177: "Health Centre"/);
   assert.match(route, /RO182: "Pharmacy"/);
-  assert.match(route, /RO96: "Medical Centre"/);
+  assert.match(route, /RO96: "Health Centre"/);
   assert.match(route, /Roles: "RO76,RO96,RO182"/);
   assert.match(route, /RO177 covers every prescribing cost centre/);
   assert.match(route, /fetchNhsOdsAmenities/);

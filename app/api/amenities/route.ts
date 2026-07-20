@@ -19,7 +19,7 @@ type AmenityType =
   | "Hospital"
   | "Leisure"
   | "Library"
-  | "Medical Centre"
+  | "Health Centre"
   | "Nursery"
   | "Pharmacy"
   | "Place of Worship"
@@ -75,8 +75,8 @@ type OdsOrganisation = {
 
 const ODS_API_BASE = "https://directory.spineservices.nhs.uk/ORD/2-0-0";
 const ODS_ROLE_TYPES: Record<string, AmenityType> = {
-  RO96: "Medical Centre",
-  RO177: "Medical Centre",
+  RO96: "Health Centre",
+  RO177: "Health Centre",
   RO182: "Pharmacy",
 };
 
@@ -304,12 +304,12 @@ function classify(tags: Record<string, string>): AmenityType | null {
   const isGenericClinicTag = amenity === "clinic" || healthcare === "clinic";
   if (isHospitalTag) {
     if (nameLooksLikeMedicalCentre && !nameLooksLikeHospital) {
-      return "Medical Centre";
+      return "Health Centre";
     }
     return "Hospital";
   }
   if (isGpMedicalTag || (isGenericClinicTag && nameLooksLikeMedicalCentre)) {
-    return "Medical Centre";
+    return "Health Centre";
   }
   const leisureIsPrivate = ["private", "no"].includes(tags.access);
   if (!leisureIsPrivate && standaloneLeisureValues.has(tags.leisure)) return "Leisure";
@@ -509,7 +509,7 @@ function toAmenities(
   }
 
   const isDispensingMedicalCentre =
-    primaryType === "Medical Centre" &&
+    primaryType === "Health Centre" &&
     ["yes", "only"].includes(tags.dispensing?.trim().toLowerCase() ?? "");
   const hasAttachedPharmacy =
     primaryType !== "Pharmacy" &&
