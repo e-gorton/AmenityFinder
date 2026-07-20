@@ -54,6 +54,19 @@ type AmenitiesResponse = {
   error?: string;
 };
 
+type WalkingResult = {
+  id: string;
+  distanceM: number | null;
+  durationSeconds: number | null;
+  status: "routed" | "unreachable";
+};
+
+type WalkingResponse = {
+  results?: WalkingResult[];
+  warnings?: string[];
+  error?: string;
+};
+
 const TYPE_COLOURS: Record<AmenityType, string> = {
   ATM: "#f07b3f",
   Bank: "#d4a72c",
@@ -84,6 +97,19 @@ function formatDistance(distanceM: number) {
 
 function coordinateLabel(point: Point) {
   return `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`;
+}
+
+function csvCell(value: string | number | boolean | null) {
+  if (value === null) return "";
+  const text = String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function exportSlug(pointName: string, point: Point) {
+  return (pointName === "Dropped pin" ? coordinateLabel(point) : pointName)
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase() || "site-centre";
 }
 
 function spreadMarkerCoordinates(items: Amenity[], itemIndex: number): [number, number] {
@@ -129,6 +155,10 @@ export default function Home() {
   const [finding, setFinding] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"All" | AmenityType>("All");
   const [moveMode, setMoveMode] = useState(false);
+  const [walkingResults, setWalkingResults] = useState<Record<string, WalkingResult>>({});
+  const [walkingWarnings, setWalkingWarnings] = useState<string[]>([]);
+  const [walkingError, setWalkingError] = useState("");
+  const [calculatingWalking, setCalculatingWalking] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -169,6 +199,9 @@ export default function Home() {
         setAmenities([]);
         setWarnings([]);
         setError("");
+        setWalkingResults({});
+        setWalkingWarnings([]);
+        setWalkingError("");
       });
 
       mapRef.current = map;
@@ -194,8 +227,8 @@ export default function Home() {
     const centreIcon = L.divIcon({
       className: "centre-marker-shell",
       html: '<span class="centre-marker"><span></span></span>',
-      iconSize: [44, 44],
-      iconAnchor: [22, 22],
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
     });
     const layer = L.layerGroup([
       L.circle([point.latitude, point.longitude], {
@@ -275,6 +308,9 @@ export default function Home() {
     setAmenities([]);
     setWarnings([]);
     setError("");
+    setWalkingResults({});
+    setWalkingWarnings([]);
+    setWalkingError("");
     mapRef.current?.setView([nextPoint.latitude, nextPoint.longitude], zoom);
   }
 
@@ -315,6 +351,9 @@ export default function Home() {
     setFinding(true);
     setError("");
     setWarnings([]);
+    setWalkingResults({});
+    setWalkingWarnings([]);
+    setWalkingError("");
     setTypeFilter("All");
     try {
       const response = await fetch(
@@ -355,6 +394,50 @@ export default function Home() {
     map.flyTo([item.latitude, item.longitude], Math.max(map.getZoom(), 16), {
       duration: 0.65,
     });
+  }
+
+  async function calculateWalkingRoutes() {
+    if (!point || !amenities.length) return;
+
+    setCalculatingWalking(true);
+    setWalkingError("");
+    setWalkingWarnings([]);
+    setWalkingResults({});
+    try {
+      const response = await fetch("/api/walking-distances", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origin: point,
+          destinations: amenities.map((item) => ({
+            id: item.id,
+            latitude: item.latitude,
+            longitude: item.longitude,
+          })),
+        }),
+      });
+      const data = (await response.json()) as WalkingResponse;
+      if (!response.ok || data.error) {
+        throw new Error(data.error ?? "Walking routes could not be calculated.");
+      }
+
+      const results = data.results ?? [];
+      setWalkingResults(
+        Object.fromEntries(results.map((result) => [result.id, result])),
+      );
+      setWalkingWarnings(data.warnings ?? []);
+      if (!results.length) {
+        setWalkingError("No walking route results were returned. The GeoJSON export remains available.");
+      }
+    } catch (routeError) {
+      setWalkingError(
+        routeError instanceof Error
+          ? routeError.message
+          : "Walking routes could not be calculated. The GeoJSON export remains available.",
+      );
+    } finally {
+      setCalculatingWalking(false);
+    }
   }
 
   function exportGeoJson() {
@@ -401,12 +484,58 @@ export default function Home() {
     });
     const downloadUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const pointSlug = (pointName === "Dropped pin" ? coordinateLabel(point!) : pointName)
-      .replace(/[^a-z0-9]+/gi, "-")
-      .replace(/^-|-$/g, "")
-      .toLowerCase();
     link.href = downloadUrl;
-    link.download = `amenities-${pointSlug || "site-centre"}-epsg27700.geojson`;
+    link.download = `amenities-${exportSlug(pointName, point!)}-epsg27700.geojson`;
+    link.click();
+    URL.revokeObjectURL(downloadUrl);
+  }
+
+  function exportWalkingCsv() {
+    if (!point || !Object.keys(walkingResults).length) return;
+
+    const headers = [
+      "Type",
+      "Name",
+      "Postcode",
+      "Straight_Line_m",
+      "Walking_Distance_m",
+      "Walking_Time_min",
+      "Route_Status",
+      "Easting",
+      "Northing",
+      "Longitude_WGS84",
+      "Latitude_WGS84",
+    ];
+    const rows = amenities.map((item) => {
+      const route = walkingResults[item.id];
+      const [rawEasting, rawNorthing] = proj4(WGS84_CRS, BNG_CRS, [
+        item.longitude,
+        item.latitude,
+      ]);
+      return [
+        item.type,
+        item.name,
+        item.postcode,
+        item.distanceM,
+        route?.distanceM ?? null,
+        route?.durationSeconds === null || route?.durationSeconds === undefined
+          ? null
+          : Number((route.durationSeconds / 60).toFixed(1)),
+        route?.status ?? "not_calculated",
+        Number(rawEasting.toFixed(3)),
+        Number(rawNorthing.toFixed(3)),
+        item.longitude,
+        item.latitude,
+      ];
+    });
+    const csv = [headers, ...rows]
+      .map((row) => row.map((value) => csvCell(value)).join(","))
+      .join("\r\n");
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `walking-distances-${exportSlug(pointName, point)}-epsg27700.csv`;
     link.click();
     URL.revokeObjectURL(downloadUrl);
   }
@@ -426,8 +555,8 @@ export default function Home() {
             <span>Finder</span>
           </h1>
           <p>
-            Select one UK point. Find mapped facilities within 2 km and export a
-            QGIS-ready GeoJSON layer.
+            Select one UK point. Export mapped facilities to GeoJSON immediately,
+            with optional walking-route distances.
           </p>
         </header>
 
@@ -546,6 +675,7 @@ export default function Home() {
             <ol className="results-list">
               {visibleAmenities.map((item) => {
                 const markerNumber = amenities.findIndex((candidate) => candidate.id === item.id) + 1;
+                const walkingRoute = walkingResults[item.id];
                 return (
                   <li key={item.id}>
                     <button type="button" onClick={() => focusAmenity(item)}>
@@ -564,6 +694,13 @@ export default function Home() {
                           {item.postcodeSource === "ods" ? <sup title="Active NHS ODS organisation; postcode-centroid position is used where OSM has no matching geometry">§</sup> : null}
                           {item.postcodeSource === "verified" ? <sup title="Reviewed supplementary amenity record">‡</sup> : null}
                         </span>
+                        {walkingRoute ? (
+                          <span className={`walking-result ${walkingRoute.status}`}>
+                            {walkingRoute.status === "routed" && walkingRoute.distanceM !== null && walkingRoute.durationSeconds !== null
+                              ? `Walk ${formatDistance(walkingRoute.distanceM)} · ${Math.max(1, Math.round(walkingRoute.durationSeconds / 60))} min`
+                              : "No mapped walking route"}
+                          </span>
+                        ) : null}
                       </span>
                       <span className={`distance ${item.outsideRadius ? "outside" : ""}`}>
                         {item.outsideRadius ? "Nearest" : formatDistance(item.distanceM)}
@@ -584,6 +721,35 @@ export default function Home() {
               British National Grid (EPSG:27700). † nearest postcode where OSM has no premises
               postcode; § active NHS ODS organisation; ‡ reviewed supplementary amenity record.
             </p>
+
+            <div className="walking-export">
+              <div>
+                <strong>Walking route distances</strong>
+                <span>Optional pedestrian-network calculation</span>
+              </div>
+              <button
+                type="button"
+                className="walking-button"
+                onClick={calculateWalkingRoutes}
+                disabled={calculatingWalking}
+              >
+                {calculatingWalking ? "Calculating walking routes…" : "Calculate walking routes"}
+              </button>
+              {walkingError ? <div className="message error-message">{walkingError}</div> : null}
+              {walkingWarnings.map((warning) => (
+                <div className="message warning-message" key={warning}>{warning}</div>
+              ))}
+              {Object.keys(walkingResults).length ? (
+                <button type="button" className="csv-button" onClick={exportWalkingCsv}>
+                  Export walking distances to CSV
+                </button>
+              ) : null}
+              <p>
+                Uses the mapped OpenStreetMap pedestrian network, including walkable roads,
+                paths and recorded public rights of way. Check route suitability and legal
+                PRoW status before issue.
+              </p>
+            </div>
           </section>
         ) : null}
 
@@ -614,7 +780,6 @@ export default function Home() {
 
         {!point || moveMode ? (
           <div className="map-prompt" aria-hidden="true">
-            <span>{moveMode ? "↗" : "+"}</span>
             <strong>{moveMode ? "Choose the new centre" : "Drop the site centre"}</strong>
             <small>
               {moveMode

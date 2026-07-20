@@ -144,6 +144,30 @@ test("keeps every amenity category synchronised across API and interface", async
   assert.deepEqual(declaredAmenityTypes(page), expected);
 });
 
+test("keeps walking routing optional and separate from immediate GeoJSON export", async () => {
+  const [page, route, css] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/walking-distances/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /function exportGeoJson\(\)/);
+  assert.match(page, /function calculateWalkingRoutes\(\)/);
+  assert.match(page, /Calculate walking routes/);
+  assert.match(page, /Export walking distances to CSV/);
+  assert.match(page, /Walking_Distance_m/);
+  assert.match(page, /Walking_Time_min/);
+  assert.match(page, /\["\\uFEFF", csv\]/);
+  assert.match(route, /sources_to_targets/);
+  assert.match(route, /costing: "pedestrian"/);
+  assert.match(route, /MATRIX_BATCH_SIZE = 40/);
+  assert.match(route, /Math\.round\(distanceKm \* 1_000\)/);
+  assert.match(route, /The GeoJSON export remains available/);
+  assert.doesNotMatch(css, /\.centre-marker::before/);
+  assert.doesNotMatch(css, /\.centre-marker::after/);
+  assert.doesNotMatch(page, /moveMode \? "↗" : "\+"/);
+});
+
 test("supplements OSM with the national NHS GP and pharmacy register", async () => {
   const [page, route] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),

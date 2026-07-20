@@ -598,6 +598,18 @@ select:focus-visible {
   font-size: 0.63rem;
 }
 
+.result-copy > .walking-result {
+  margin-top: 2px;
+  color: #2f684f;
+  font-family: inherit;
+  font-size: 0.63rem;
+  font-weight: 750;
+}
+
+.result-copy > .walking-result.unreachable {
+  color: #9b5e00;
+}
+
 .result-copy sup {
   color: var(--amber-dark);
   font-weight: 900;
@@ -667,6 +679,80 @@ select:focus-visible {
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.62rem;
   font-weight: 700;
+}
+
+.walking-export {
+  display: grid;
+  gap: 9px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.walking-export > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.walking-export > div:first-child strong {
+  color: var(--ink);
+  font-size: 0.75rem;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.walking-export > div:first-child span,
+.walking-export > p {
+  color: #727a7e;
+  font-size: 0.62rem;
+  line-height: 1.45;
+}
+
+.walking-export > p {
+  margin: 0;
+}
+
+.walking-button,
+.csv-button {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--ink);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.walking-button {
+  background: transparent;
+  color: var(--ink);
+}
+
+.walking-button:hover:not(:disabled) {
+  border-color: var(--amber-dark);
+  background: #fff8e8;
+}
+
+.walking-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.csv-button {
+  border-color: #2f684f;
+  background: #2f684f;
+  color: var(--white);
+}
+
+.csv-button:hover {
+  border-color: #23513d;
+  background: #23513d;
+}
+
+.walking-export > .message {
+  margin: 0;
 }
 
 .panel-footer {
@@ -792,20 +878,6 @@ select:focus-visible {
   text-align: center;
 }
 
-.map-prompt > span {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  margin-bottom: 12px;
-  border: 1px solid var(--amber-dark);
-  border-radius: 50%;
-  background: var(--amber);
-  font-family: Georgia, serif;
-  font-size: 1.9rem;
-  line-height: 1;
-}
-
 .map-prompt strong {
   font-family: "Arial Narrow", Impact, sans-serif;
   font-size: 1.05rem;
@@ -888,15 +960,15 @@ select:focus-visible {
 .centre-marker {
   display: grid;
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 28px;
+  height: 28px;
   place-items: center;
   border: 2px solid var(--amber);
   border-radius: 50%;
   background: rgba(16, 24, 32, 0.91);
   box-shadow:
-    0 0 0 7px rgba(242, 169, 0, 0.2),
-    0 7px 16px rgba(16, 24, 32, 0.32);
+    0 0 0 4px rgba(242, 169, 0, 0.18),
+    0 5px 12px rgba(16, 24, 32, 0.3);
 }
 
 .centre-marker > span {
@@ -904,23 +976,6 @@ select:focus-visible {
   height: 8px;
   border-radius: 50%;
   background: var(--white);
-}
-
-.centre-marker::before,
-.centre-marker::after {
-  position: absolute;
-  background: var(--amber);
-  content: "";
-}
-
-.centre-marker::before {
-  width: 1px;
-  height: 54px;
-}
-
-.centre-marker::after {
-  width: 54px;
-  height: 1px;
 }
 
 .amenity-marker {
