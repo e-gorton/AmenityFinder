@@ -60,7 +60,9 @@ test("keeps medical centres, hospitals and pharmacies distinct", async () => {
 
   assert.match(page, /\| "Hospital"/);
   assert.match(page, /\| "Medical Centre"/);
-  assert.match(route, /amenity === "hospital" \|\| healthcare === "hospital"/);
+  assert.match(route, /const isHospitalTag =/);
+  assert.match(route, /nameLooksLikeHospital/);
+  assert.match(route, /nameLooksLikeMedicalCentre/);
   assert.match(route, /\["chemist", "pharmacy"\]\.includes\(shop\)/);
   assert.match(route, /healthcare === "pharmacy"/);
   assert.match(route, /primaryType === "Medical Centre"/);

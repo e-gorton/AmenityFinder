@@ -10,7 +10,7 @@ A UK amenity screening tool for transport planning and development planning work
 - Post Box is limited to the two closest mapped boxes within 2 km.
 - ATM includes standalone OpenStreetMap `amenity=atm` features, ATMs mapped as `atm=yes` on another premises, and a small reviewed supplement for confirmed machines that are absent from OpenStreetMap. A verified supplement is deduplicated when a corresponding OSM point appears within 40 m and expires automatically 18 months after its review date.
 - Convenience Store includes both OpenStreetMap `shop=convenience` and `shop=supermarket` features.
-- Medical Centre includes GP surgeries, doctors, health posts and mapped clinics. Hospitals are returned separately as Hospital.
+- Medical Centre includes GP surgeries, doctors, health posts and mapped clinics. Hospitals are returned separately as Hospital. Where OSM health tags conflict with an explicit facility name such as "Medical Centre" or "Hospital", the name is used to select the category.
 - Pharmacy includes `amenity=pharmacy`, `healthcare=pharmacy` and `shop=chemist`/`shop=pharmacy`. A dispensing service mapped on a medical centre is returned as a separate pharmacy point at the same location.
 - Leisure includes recognisable facilities and explicitly named parks, nature reserves and recreation grounds; private-access features and unnamed broad land polygons are excluded.
 - Most data is queried live from OpenStreetMap through the Overpass API. The reviewed ATM supplement records its own verification date in the source code so it can be checked independently.

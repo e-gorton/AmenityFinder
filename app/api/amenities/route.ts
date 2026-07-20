@@ -251,6 +251,12 @@ function classify(tags: Record<string, string>): AmenityType | null {
   const amenity = tags.amenity;
   const healthcare = tags.healthcare;
   const shop = tags.shop;
+  const healthcareName = mappedName(tags)?.trim().toLowerCase() ?? "";
+  const nameLooksLikeHospital = /\b(?:hospital|infirmary)\b/.test(healthcareName);
+  const nameLooksLikeMedicalCentre =
+    /\b(?:gp|general practice|medical centr(?:e|er)|health centr(?:e|er)|medical practi(?:ce|se)|doctors?|surgery)\b/.test(
+      healthcareName,
+    );
 
   if (amenity === "atm") return "ATM";
   // Bank-branch mapping becomes stale quickly. Require both an identifiable
@@ -259,7 +265,6 @@ function classify(tags: Record<string, string>): AmenityType | null {
   if (amenity === "bank") {
     return hasMappedIdentity(tags) && hasBankOperationalDetails(tags) ? "Bank" : null;
   }
-  if (amenity === "hospital" || healthcare === "hospital") return "Hospital";
   if (
     amenity === "pharmacy" ||
     healthcare === "pharmacy" ||
@@ -269,10 +274,14 @@ function classify(tags: Record<string, string>): AmenityType | null {
   }
   if (amenity === "community_centre") return "Community Centre";
   if (["convenience", "supermarket"].includes(shop)) return "Convenience Store";
-  if (
+  const isHospitalTag = amenity === "hospital" || healthcare === "hospital";
+  const isMedicalCentreTag =
     ["clinic", "doctors", "health_post"].includes(amenity) ||
-    ["clinic", "doctor", "centre", "general_practice"].includes(healthcare)
-  ) {
+    ["clinic", "doctor", "centre", "general_practice"].includes(healthcare);
+  if (isHospitalTag || isMedicalCentreTag) {
+    if (nameLooksLikeHospital) return "Hospital";
+    if (nameLooksLikeMedicalCentre) return "Medical Centre";
+    if (isHospitalTag) return "Hospital";
     return "Medical Centre";
   }
   const leisureIsPrivate = ["private", "no"].includes(tags.access);
