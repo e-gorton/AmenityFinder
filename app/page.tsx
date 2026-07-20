@@ -6,12 +6,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type AmenityType =
   | "ATM"
   | "Bank"
-  | "Chemist"
   | "Community Centre"
   | "Convenience Store"
-  | "Health Centre"
+  | "Hospital"
   | "Leisure"
   | "Library"
+  | "Medical Centre"
   | "Nursery"
   | "Pharmacy"
   | "Place of Worship"
@@ -49,14 +49,14 @@ type AmenitiesResponse = {
 const TYPE_COLOURS: Record<AmenityType, string> = {
   ATM: "#f07b3f",
   Bank: "#d4a72c",
-  Chemist: "#3ca370",
   "Community Centre": "#7b61a8",
   "Convenience Store": "#e07a2f",
-  "Health Centre": "#d84f4f",
+  Hospital: "#b51f2e",
   Leisure: "#2b8c6f",
   Library: "#3478b8",
+  "Medical Centre": "#d84f4f",
   Nursery: "#e8c93f",
-  Pharmacy: "#32a852",
+  Pharmacy: "#3ca370",
   "Place of Worship": "#6d70c5",
   "Post Box": "#375ab7",
   "Post Office": "#cf4d45",

@@ -51,3 +51,20 @@ test("keeps the QGIS schema and nearest exceptions explicit", async () => {
   assert.match(route, /\["Bank", "Post Office"\]/);
   assert.match(route, /LOCAL_RADIUS_M = 2_000/);
 });
+
+test("keeps medical centres, hospitals and pharmacies distinct", async () => {
+  const [page, route] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/amenities/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /\| "Hospital"/);
+  assert.match(page, /\| "Medical Centre"/);
+  assert.match(route, /amenity === "hospital" \|\| healthcare === "hospital"/);
+  assert.match(route, /\["chemist", "pharmacy"\]\.includes\(shop\)/);
+  assert.match(route, /healthcare === "pharmacy"/);
+  assert.match(route, /primaryType === "Medical Centre"/);
+  assert.match(route, /tags\.dispensing/);
+  assert.doesNotMatch(page, /\| "Chemist"/);
+  assert.doesNotMatch(page, /\| "Health Centre"/);
+});

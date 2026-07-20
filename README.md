@@ -10,6 +10,8 @@ A UK amenity screening tool for transport planning and development planning work
 - Post Box is limited to the two closest mapped boxes within 2 km.
 - ATM includes standalone OpenStreetMap `amenity=atm` features, ATMs mapped as `atm=yes` on another premises, and a small reviewed supplement for confirmed machines that are absent from OpenStreetMap. A verified supplement is deduplicated when a corresponding OSM point appears within 40 m and expires automatically 18 months after its review date.
 - Convenience Store includes both OpenStreetMap `shop=convenience` and `shop=supermarket` features.
+- Medical Centre includes GP surgeries, doctors, health posts and mapped clinics. Hospitals are returned separately as Hospital.
+- Pharmacy includes `amenity=pharmacy`, `healthcare=pharmacy` and `shop=chemist`/`shop=pharmacy`. A dispensing service mapped on a medical centre is returned as a separate pharmacy point at the same location.
 - Leisure includes recognisable facilities and explicitly named parks, nature reserves and recreation grounds; private-access features and unnamed broad land polygons are excluded.
 - Most data is queried live from OpenStreetMap through the Overpass API. The reviewed ATM supplement records its own verification date in the source code so it can be checked independently.
 - `addr:postcode` or `postal_code` is used where it exists in OpenStreetMap. Where it is absent, the nearest postcode is requested from Postcodes.io and marked with a dagger in the interface.
@@ -27,11 +29,11 @@ The first three properties deliberately match the existing QGIS symbology workfl
 | `Distance_m` | Straight-line distance from the selected point |
 | `Outside_2km` | `true` for a nearest-only exception beyond the local radius |
 
-Permitted `Type` values are: ATM, Bank, Chemist, Community Centre, Convenience Store, Health Centre, Leisure, Library, Nursery, Pharmacy, Place of Worship, Post Box, Post Office, Primary School, Public House, Secondary School, College and University.
+Permitted `Type` values are: ATM, Bank, Community Centre, Convenience Store, Hospital, Leisure, Library, Medical Centre, Nursery, Pharmacy, Place of Worship, Post Box, Post Office, Primary School, Public House, Secondary School, College and University.
 
 ## Data limitations
 
-This is a proportionate desktop screening tool. OpenStreetMap coverage, names, classifications and opening status vary. The lifecycle and bank-identity filters reduce stale results but cannot prove that a named facility is still trading. An ATM attached to a host premises, or added from the reviewed supplement, may use the host or postcode location rather than the exact machine position. A nearest postcode is not necessarily the premises postcode. Critical facilities should be checked against operator or local authority information before being relied upon in a Transport Statement, Transport Assessment or planning submission. The 2 km radius is straight-line distance rather than a walk-network catchment.
+This is a proportionate desktop screening tool. OpenStreetMap coverage, names, classifications and opening status vary. The lifecycle and bank-identity filters reduce stale results but cannot prove that a named facility is still trading. An ATM attached to a host premises, or added from the reviewed supplement, may use the host or postcode location rather than the exact machine position. A nearest postcode is not necessarily the premises postcode. Critical facilities should be checked against operator or local authority information before being relied upon in a Transport Statement, Transport Assessment or planning submission. A dispensing GP practice is listed as a pharmacy service but may not operate as a general-access community pharmacy and should be checked before issue. The 2 km radius is straight-line distance rather than a walk-network catchment.
 
 ## Development and deployment
 

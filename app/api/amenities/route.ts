@@ -14,12 +14,12 @@ const OVERPASS_ENDPOINTS = [
 type AmenityType =
   | "ATM"
   | "Bank"
-  | "Chemist"
   | "Community Centre"
   | "Convenience Store"
-  | "Health Centre"
+  | "Hospital"
   | "Leisure"
   | "Library"
+  | "Medical Centre"
   | "Nursery"
   | "Pharmacy"
   | "Place of Worship"
@@ -249,6 +249,7 @@ function classify(tags: Record<string, string>): AmenityType | null {
   if (isInactiveFeature(tags)) return null;
 
   const amenity = tags.amenity;
+  const healthcare = tags.healthcare;
   const shop = tags.shop;
 
   if (amenity === "atm") return "ATM";
@@ -258,14 +259,21 @@ function classify(tags: Record<string, string>): AmenityType | null {
   if (amenity === "bank") {
     return hasMappedIdentity(tags) && hasBankOperationalDetails(tags) ? "Bank" : null;
   }
-  if (shop === "chemist") return "Chemist";
+  if (amenity === "hospital" || healthcare === "hospital") return "Hospital";
+  if (
+    amenity === "pharmacy" ||
+    healthcare === "pharmacy" ||
+    ["chemist", "pharmacy"].includes(shop)
+  ) {
+    return "Pharmacy";
+  }
   if (amenity === "community_centre") return "Community Centre";
   if (["convenience", "supermarket"].includes(shop)) return "Convenience Store";
   if (
     ["clinic", "doctors", "health_post"].includes(amenity) ||
-    ["clinic", "doctor", "centre"].includes(tags.healthcare)
+    ["clinic", "doctor", "centre", "general_practice"].includes(healthcare)
   ) {
-    return "Health Centre";
+    return "Medical Centre";
   }
   const leisureIsPrivate = ["private", "no"].includes(tags.access);
   if (!leisureIsPrivate && standaloneLeisureValues.has(tags.leisure)) return "Leisure";
@@ -283,7 +291,6 @@ function classify(tags: Record<string, string>): AmenityType | null {
   ) {
     return "Nursery";
   }
-  if (amenity === "pharmacy") return "Pharmacy";
   if (amenity === "place_of_worship") return "Place of Worship";
   if (amenity === "post_box") return "Post Box";
   if (amenity === "post_office") return "Post Office";
@@ -338,6 +345,17 @@ function attachedAtmName(tags: Record<string, string>) {
   const hostName = mappedName(tags)?.trim();
   if (!hostName) return "ATM";
   return /\b(?:atm|cash ?machine)\b/i.test(hostName) ? hostName : `${hostName} ATM`;
+}
+
+function attachedPharmacyName(
+  tags: Record<string, string>,
+  isDispensingService: boolean,
+) {
+  const hostName = mappedName(tags)?.trim();
+  if (!hostName) return isDispensingService ? "Dispensing pharmacy" : "Pharmacy";
+  return isDispensingService
+    ? `${hostName} dispensing pharmacy`
+    : `${hostName} pharmacy`;
 }
 
 function createAmenity(
@@ -439,16 +457,37 @@ function toAmenities(
     if (attachedAtm) amenities.push(attachedAtm);
   }
 
+  const isDispensingMedicalCentre =
+    primaryType === "Medical Centre" &&
+    ["yes", "only"].includes(tags.dispensing?.trim().toLowerCase() ?? "");
+  const hasAttachedPharmacy =
+    primaryType !== "Pharmacy" &&
+    (isDispensingMedicalCentre ||
+      tags.pharmacy?.trim().toLowerCase() === "yes");
+  if (hasAttachedPharmacy) {
+    const attachedPharmacy = createAmenity(
+      element,
+      "Pharmacy",
+      originLatitude,
+      originLongitude,
+      "#pharmacy",
+      attachedPharmacyName(tags, isDispensingMedicalCentre),
+    );
+    if (attachedPharmacy) amenities.push(attachedPharmacy);
+  }
+
   return amenities;
 }
 
 function buildLocalQuery(latitude: number, longitude: number) {
   return `[out:json][timeout:35];
 (
-  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["amenity"~"^(atm|bank|community_centre|clinic|doctors|health_post|library|kindergarten|childcare|nursery|pharmacy|place_of_worship|post_box|post_office|school|pub|college|university)$"];
-  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["shop"~"^(chemist|convenience|supermarket)$"];
+  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["amenity"~"^(atm|bank|community_centre|clinic|doctors|health_post|hospital|library|kindergarten|childcare|nursery|pharmacy|place_of_worship|post_box|post_office|school|pub|college|university)$"];
+  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["shop"~"^(chemist|convenience|pharmacy|supermarket)$"];
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["leisure"~"^(park|playground|sports_centre|sports_club|fitness_centre|stadium|swimming_pool|nature_reserve|recreation_ground)$"];
-  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["healthcare"~"^(clinic|doctor|centre)$"];
+  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["healthcare"~"^(centre|clinic|doctor|general_practice|hospital|pharmacy)$"];
+  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["dispensing"~"^(yes|only)$"];
+  nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["pharmacy"="yes"];
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["social_facility"="day_care"];
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["atm"="yes"];
 );
