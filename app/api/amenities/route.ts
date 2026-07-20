@@ -75,6 +75,7 @@ type OdsOrganisation = {
 
 const ODS_API_BASE = "https://directory.spineservices.nhs.uk/ORD/2-0-0";
 const ODS_ROLE_TYPES: Record<string, AmenityType> = {
+  RO96: "Medical Centre",
   RO177: "Medical Centre",
   RO182: "Pharmacy",
 };
@@ -297,13 +298,17 @@ function classify(tags: Record<string, string>): AmenityType | null {
   if (amenity === "community_centre") return "Community Centre";
   if (["convenience", "supermarket"].includes(shop)) return "Convenience Store";
   const isHospitalTag = amenity === "hospital" || healthcare === "hospital";
-  const isMedicalCentreTag =
-    ["clinic", "doctors", "health_post"].includes(amenity) ||
-    ["clinic", "doctor", "centre", "general_practice"].includes(healthcare);
-  if (isHospitalTag || isMedicalCentreTag) {
-    if (nameLooksLikeHospital) return "Hospital";
-    if (nameLooksLikeMedicalCentre) return "Medical Centre";
-    if (isHospitalTag) return "Hospital";
+  const isGpMedicalTag =
+    ["doctors", "health_post"].includes(amenity) ||
+    ["doctor", "centre", "general_practice"].includes(healthcare);
+  const isGenericClinicTag = amenity === "clinic" || healthcare === "clinic";
+  if (isHospitalTag) {
+    if (nameLooksLikeMedicalCentre && !nameLooksLikeHospital) {
+      return "Medical Centre";
+    }
+    return "Hospital";
+  }
+  if (isGpMedicalTag || (isGenericClinicTag && nameLooksLikeMedicalCentre)) {
     return "Medical Centre";
   }
   const leisureIsPrivate = ["private", "no"].includes(tags.access);
@@ -316,9 +321,22 @@ function classify(tags: Record<string, string>): AmenityType | null {
     return "Leisure";
   }
   if (amenity === "library") return "Library";
+  const dayCareDescription = [
+    mappedName(tags),
+    tags["social_facility:for"],
+    tags.description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const isChildDayCare =
+    tags.social_facility === "day_care" &&
+    /\b(?:child|children|childcare|juvenile|nursery|pre[ -]?school)\b/.test(
+      dayCareDescription,
+    );
   if (
     ["kindergarten", "childcare", "nursery"].includes(amenity) ||
-    tags.social_facility === "day_care"
+    isChildDayCare
   ) {
     return "Nursery";
   }
@@ -633,6 +651,11 @@ async function fetchOdsOrganisations(
       const params = new URLSearchParams({
         PostCode: code,
         Status: "Active",
+        // RO177 covers every prescribing cost centre, including prisons and
+        // specialist services. The additional RO76 role identifies actual GP
+        // practices; RO96 identifies branch surgeries and RO182 is the
+        // specific pharmacy-site role.
+        Roles: "RO76,RO96,RO182",
         Limit: "1000",
       });
       const response = await fetchWithTimeout(

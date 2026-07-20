@@ -23,6 +23,12 @@ async function render() {
   );
 }
 
+function declaredAmenityTypes(source) {
+  const union = source.match(/type AmenityType\s*=([\s\S]*?);/);
+  assert.ok(union, "AmenityType union should be declared");
+  return [...union[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]).sort();
+}
+
 test("server-renders the finished amenity finder", async () => {
   const response = await render();
   assert.equal(response.status, 200);
@@ -61,14 +67,48 @@ test("keeps medical centres, hospitals and pharmacies distinct", async () => {
   assert.match(page, /\| "Hospital"/);
   assert.match(page, /\| "Medical Centre"/);
   assert.match(route, /const isHospitalTag =/);
+  assert.match(route, /const isGenericClinicTag =/);
+  assert.match(route, /isGenericClinicTag && nameLooksLikeMedicalCentre/);
   assert.match(route, /nameLooksLikeHospital/);
   assert.match(route, /nameLooksLikeMedicalCentre/);
   assert.match(route, /\["chemist", "pharmacy"\]\.includes\(shop\)/);
   assert.match(route, /healthcare === "pharmacy"/);
   assert.match(route, /primaryType === "Medical Centre"/);
   assert.match(route, /tags\.dispensing/);
+  assert.match(route, /const isChildDayCare =/);
+  assert.match(route, /tags\["social_facility:for"\]/);
   assert.doesNotMatch(page, /\| "Chemist"/);
   assert.doesNotMatch(page, /\| "Health Centre"/);
+});
+
+test("keeps every amenity category synchronised across API and interface", async () => {
+  const [page, route] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/amenities/route.ts", import.meta.url), "utf8"),
+  ]);
+  const expected = [
+    "ATM",
+    "Bank",
+    "College",
+    "Community Centre",
+    "Convenience Store",
+    "Hospital",
+    "Leisure",
+    "Library",
+    "Medical Centre",
+    "Nursery",
+    "Pharmacy",
+    "Place of Worship",
+    "Post Box",
+    "Post Office",
+    "Primary School",
+    "Public House",
+    "Secondary School",
+    "University",
+  ].sort();
+
+  assert.deepEqual(declaredAmenityTypes(route), expected);
+  assert.deepEqual(declaredAmenityTypes(page), expected);
 });
 
 test("supplements OSM with the national NHS GP and pharmacy register", async () => {
@@ -80,12 +120,16 @@ test("supplements OSM with the national NHS GP and pharmacy register", async () 
   assert.match(route, /directory\.spineservices\.nhs\.uk\/ORD\/2-0-0/);
   assert.match(route, /RO177: "Medical Centre"/);
   assert.match(route, /RO182: "Pharmacy"/);
+  assert.match(route, /RO96: "Medical Centre"/);
+  assert.match(route, /Roles: "RO76,RO96,RO182"/);
+  assert.match(route, /RO177 covers every prescribing cost centre/);
   assert.match(route, /fetchNhsOdsAmenities/);
   assert.match(route, /Status: "Active"/);
   assert.match(route, /postcodeDistrictSamplePoints/);
   assert.match(route, /source: "nhs-ods"/);
   assert.doesNotMatch(route, /littleborough-cohens-hare-hill-road/);
   assert.doesNotMatch(route, /littleborough-group-practice/);
+  assert.doesNotMatch(route, /HMP BUCKLEY HALL/);
   assert.match(route, /toVerifiedAmenities/);
   assert.match(route, /Live OpenStreetMap data is temporarily unavailable/);
   assert.match(route, /osmAvailable \? FALLBACK_RADII_M : \[\]/);
