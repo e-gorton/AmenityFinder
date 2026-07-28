@@ -161,6 +161,7 @@ test("keeps walking routing optional and separate from immediate GeoJSON export"
   assert.match(route, /sources_to_targets/);
   assert.match(route, /costing: "pedestrian"/);
   assert.match(route, /MATRIX_BATCH_SIZE = 40/);
+  assert.doesNotMatch(route, /MAX_DESTINATIONS|maximum of .* walking destinations/i);
   assert.match(route, /WALKING_SPEED_KMH = 4\.8/);
   assert.match(route, /Math\.round\(distanceKm \* 1_000\)/);
   assert.match(route, /Math\.round\(\(distanceKm \/ WALKING_SPEED_KMH\) \* 3_600\)/);
