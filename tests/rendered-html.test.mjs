@@ -194,7 +194,11 @@ test("supplements OSM with the national NHS GP and pharmacy register", async () 
   assert.match(route, /toVerifiedAmenities/);
   assert.match(route, /Live OpenStreetMap data is temporarily unavailable/);
   assert.match(route, /osmAvailable \? FALLBACK_RADII_M : \[\]/);
-  assert.match(route, /OVERPASS_REQUEST_TIMEOUT_MS = 25_000/);
+  assert.match(route, /OVERPASS_REQUEST_TIMEOUT_MS = 40_000/);
+  assert.match(route, /OVERPASS_HEDGE_DELAY_MS = 6_000/);
+  assert.match(route, /overpass\.atownsend\.org\.uk/);
+  assert.match(route, /Promise\.any\(attempts\)/);
+  assert.match(route, /Local amenity results are still complete/);
   assert.match(page, /Active NHS ODS organisation/);
   assert.match(page, /Reviewed supplementary amenity record/);
   assert.match(page, /spreadMarkerCoordinates/);
