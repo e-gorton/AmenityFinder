@@ -6,11 +6,13 @@ const LOCAL_RADIUS_M = 2_000;
 const FALLBACK_RADII_M = [20_000, 100_000];
 const VERIFIED_AMENITY_MAX_AGE_MS = 548 * 24 * 60 * 60 * 1_000;
 // Public Overpass instances can take more than ten seconds to return this
-// multi-category query under normal load. Keep the client window comfortably
-// below the query's own 35-second server limit without treating a slow response
-// as a complete OpenStreetMap outage.
-const OVERPASS_REQUEST_TIMEOUT_MS = 25_000;
+// multi-category query under normal load. Keep the client window slightly
+// beyond the query's own 35-second server limit so the response can arrive
+// without treating a slow request as a complete OpenStreetMap outage.
+const OVERPASS_REQUEST_TIMEOUT_MS = 40_000;
+const OVERPASS_HEDGE_DELAY_MS = 6_000;
 const OVERPASS_ENDPOINTS = [
+  "https://overpass.atownsend.org.uk/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass-api.de/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
@@ -817,13 +819,23 @@ async function fetchNhsOdsAmenities(
 }
 
 async function queryOverpass(query: string): Promise<OsmElement[]> {
-  let lastError: unknown;
+  const controllers = OVERPASS_ENDPOINTS.map(() => new AbortController());
+  const attempts = OVERPASS_ENDPOINTS.map(
+    async (endpoint, index): Promise<OsmElement[]> => {
+      if (index) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, index * OVERPASS_HEDGE_DELAY_MS),
+        );
+      }
+      const controller = controllers[index];
+      if (controller.signal.aborted) throw new Error("Overpass attempt cancelled");
+      const timeout = setTimeout(
+        () => controller.abort(),
+        OVERPASS_REQUEST_TIMEOUT_MS,
+      );
 
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    try {
-      const response = await fetchWithTimeout(
-        endpoint,
-        {
+      try {
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: {
             Accept: "application/json",
@@ -832,23 +844,30 @@ async function queryOverpass(query: string): Promise<OsmElement[]> {
               "AmenityFinder/1.0 (https://amenity-finder.e-gorton.workers.dev)",
           },
           body: new URLSearchParams({ data: query }).toString(),
-        },
-        OVERPASS_REQUEST_TIMEOUT_MS,
-      );
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        throw new Error(`Overpass returned ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`Overpass returned ${response.status}`);
+        }
+
+        const data = (await response.json()) as { elements?: OsmElement[] };
+        return data.elements ?? [];
+      } finally {
+        clearTimeout(timeout);
       }
+    },
+  );
 
-      const data = (await response.json()) as { elements?: OsmElement[] };
-      return data.elements ?? [];
-    } catch (error) {
-      console.warn(`Overpass request failed for ${endpoint}`, error);
-      lastError = error;
-    }
+  try {
+    const elements = await Promise.any(attempts);
+    controllers.forEach((controller) => controller.abort());
+    return elements;
+  } catch (error) {
+    controllers.forEach((controller) => controller.abort());
+    console.warn("Every Overpass mirror failed", error);
+    throw new Error("No Overpass endpoint was available");
   }
-
-  throw lastError ?? new Error("No Overpass endpoint was available");
 }
 
 function normalisedName(value: string) {
@@ -1150,11 +1169,20 @@ export async function GET(request: Request) {
       const missingTypes = [...nearestOnlyTypes].filter((type) => !nearest.has(type));
       if (!missingTypes.length) break;
 
-      const fallbackElements = await queryOverpass(
-        buildNearestQuery(latitude, longitude, radius, missingTypes),
-      );
-      const fallbackCandidates = fallbackElements
-        .flatMap((element) => toAmenities(element, latitude, longitude));
+      let fallbackCandidates: Amenity[];
+      try {
+        const fallbackElements = await queryOverpass(
+          buildNearestQuery(latitude, longitude, radius, missingTypes),
+        );
+        fallbackCandidates = fallbackElements.flatMap((element) =>
+          toAmenities(element, latitude, longitude),
+        );
+      } catch {
+        warnings.push(
+          "The wider OpenStreetMap search for a nearest bank or post office did not respond. Local amenity results are still complete; try again before exporting if either nearest-only category is absent.",
+        );
+        break;
+      }
 
       for (const type of missingTypes) {
         const closest = fallbackCandidates
