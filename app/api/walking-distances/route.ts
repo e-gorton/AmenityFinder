@@ -4,7 +4,6 @@ export const runtime = "edge";
 
 const VALHALLA_MATRIX_URL =
   "https://valhalla1.openstreetmap.de/sources_to_targets";
-const MAX_DESTINATIONS = 100;
 const MATRIX_BATCH_SIZE = 40;
 const REQUEST_TIMEOUT_MS = 30_000;
 const WALKING_SPEED_KMH = 4.8;
@@ -139,12 +138,6 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  if (destinations.length > MAX_DESTINATIONS) {
-    return NextResponse.json(
-      { error: `A maximum of ${MAX_DESTINATIONS} walking destinations can be calculated at once.` },
-      { status: 400 },
-    );
-  }
   if (new Set(destinations.map((destination) => destination.id)).size !== destinations.length) {
     return NextResponse.json({ error: "Destination IDs must be unique." }, { status: 400 });
   }
@@ -172,3 +165,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 503 });
   }
 }
+
