@@ -37,7 +37,7 @@ After amenities have been returned, select **Calculate walking routes**. The cal
 | `Easting`, `Northing` | Facility position in EPSG:27700 metres |
 | `Longitude_WGS84`, `Latitude_WGS84` | Original source coordinates for traceability |
 
-The walking calculation is optional and is deliberately independent of the GeoJSON workflow. Valhalla supplies the pedestrian-network distance and journey time is then calculated using a fixed walking speed of 4.8 km/h. If the public routing service is unavailable, the map and GeoJSON export remain usable.
+The walking calculation is optional and is deliberately independent of the GeoJSON workflow. There is no application-level limit on the number of amenities submitted; larger result sets are divided into batches of 40 destinations. Valhalla supplies the pedestrian-network distance and journey time is then calculated using a fixed walking speed of 4.8 km/h. If the public routing service is unavailable, the map and GeoJSON export remain usable.
 
 ## GeoJSON fields
 
@@ -72,4 +72,5 @@ pnpm build
 The project targets Cloudflare Workers using vinext and the Cloudflare Vite plugin. For Cloudflare Workers Builds, use `pnpm run build` as the build command and `pnpm exec wrangler deploy` as the deploy command. The Worker name is `amenity-finder`.
 
 Data services: [OpenStreetMap / Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API), [NHS Organisation Data Service](https://digital.nhs.uk/services/organisation-data-service), [Postcodes.io](https://postcodes.io/) and [Valhalla pedestrian routing](https://valhalla.github.io/valhalla/api/matrix/api-reference/).
+
 
