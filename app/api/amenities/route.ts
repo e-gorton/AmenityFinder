@@ -5,6 +5,11 @@ export const runtime = "edge";
 const LOCAL_RADIUS_M = 2_000;
 const FALLBACK_RADII_M = [20_000, 100_000];
 const VERIFIED_AMENITY_MAX_AGE_MS = 548 * 24 * 60 * 60 * 1_000;
+// Public Overpass instances can take more than ten seconds to return this
+// multi-category query under normal load. Keep the client window comfortably
+// below the query's own 35-second server limit without treating a slow response
+// as a complete OpenStreetMap outage.
+const OVERPASS_REQUEST_TIMEOUT_MS = 25_000;
 const OVERPASS_ENDPOINTS = [
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass-api.de/api/interpreter",
@@ -828,7 +833,7 @@ async function queryOverpass(query: string): Promise<OsmElement[]> {
           },
           body: new URLSearchParams({ data: query }).toString(),
         },
-        9_000,
+        OVERPASS_REQUEST_TIMEOUT_MS,
       );
 
       if (!response.ok) {
@@ -878,7 +883,7 @@ function organisationNameKey(value: string) {
     .join(" ");
 }
 
-function mergeDuplicate(candidate: Amenity, item: Amenity) {
+function mergeDuplicate(candidate: Amenity, item: Amenity): Amenity {
   const ods = [candidate, item].find((record) => record.source === "nhs-ods");
   const osm = [candidate, item].find((record) => record.source === "osm");
   if (ods && osm) {
@@ -1210,4 +1215,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
 
