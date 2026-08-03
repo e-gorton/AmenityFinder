@@ -1128,12 +1128,27 @@ async function queryOverpass(query: string): Promise<OsmElement[]> {
     },
   );
 
+  // A public mirror can occasionally return HTTP 200 with an empty element
+  // array while it is unhealthy or behind replication. Do not let that empty
+  // response win the hedge and cancel mirrors that are still returning the
+  // actual result. Empty is accepted only when every successful mirror agrees.
+  const nonEmptyAttempts = attempts.map((attempt) =>
+    attempt.then((elements) => {
+      if (!elements.length) throw new Error("Overpass mirror returned no elements");
+      return elements;
+    }),
+  );
+
   try {
-    const elements = await Promise.any(attempts);
+    const elements = await Promise.any(nonEmptyAttempts);
     controllers.forEach((controller) => controller.abort());
     return elements;
   } catch (error) {
+    const settledAttempts = await Promise.allSettled(attempts);
     controllers.forEach((controller) => controller.abort());
+    if (settledAttempts.some((attempt) => attempt.status === "fulfilled")) {
+      return [];
+    }
     console.warn("Every Overpass mirror failed", error);
     throw new Error("No Overpass endpoint was available");
   }

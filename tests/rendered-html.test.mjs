@@ -197,7 +197,9 @@ test("supplements OSM with the national NHS GP and pharmacy register", async () 
   assert.match(route, /OVERPASS_REQUEST_TIMEOUT_MS = 40_000/);
   assert.match(route, /OVERPASS_HEDGE_DELAY_MS = 6_000/);
   assert.match(route, /overpass\.atownsend\.org\.uk/);
-  assert.match(route, /Promise\.any\(attempts\)/);
+  assert.match(route, /Promise\.any\(nonEmptyAttempts\)/);
+  assert.match(route, /Promise\.allSettled\(attempts\)/);
+  assert.match(route, /Overpass mirror returned no elements/);
   assert.match(route, /Local amenity results are still complete/);
   assert.match(page, /Active NHS ODS organisation/);
   assert.match(page, /Reviewed supplementary amenity record/);
