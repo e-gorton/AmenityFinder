@@ -7,6 +7,7 @@ A UK amenity screening tool for transport planning and development planning work
 - All standard amenity types are returned within a fixed 2 km straight-line radius.
 - Bank and Post Office are nearest-only categories. The closest mapped feature is returned even when it is outside 2 km, using staged searches up to 100 km.
 - Features carrying closed, disused, former, abandoned or other lifecycle tags are excluded. Bank points must also have a mapped name, brand or operator plus an operational/contact detail such as opening hours, telephone, website or survey/check date; low-confidence legacy bank points are ignored.
+- Quality screening is applied before display. Most categories require a recognisable name, brand or operator; proposed, under-construction, future-opening and ended records are excluded; and category-specific name/proximity rules collapse duplicate OSM nodes, buildings and campus polygons representing the same premises.
 - Post Box is limited to the two closest mapped boxes within 2 km.
 - ATM includes standalone OpenStreetMap `amenity=atm` features, ATMs mapped as `atm=yes` on another premises, and a small reviewed supplement for confirmed machines that are absent from OpenStreetMap.
 - Convenience Store includes both OpenStreetMap `shop=convenience` and `shop=supermarket` features.
