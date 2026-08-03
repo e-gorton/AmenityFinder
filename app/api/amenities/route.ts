@@ -155,9 +155,12 @@ const namedLeisureAreaValues = new Set([
 const inactiveLifecyclePrefixes = [
   "abandoned:",
   "closed:",
+  "construction:",
   "demolished:",
   "disused:",
   "former:",
+  "planned:",
+  "proposed:",
   "razed:",
   "removed:",
   "was:",
@@ -175,10 +178,34 @@ const inactiveStatusValues = new Set([
   "demolished",
   "disused",
   "former",
+  "planned",
+  "proposed",
   "razed",
   "removed",
+  "under_construction",
   "vacant",
 ]);
+
+const duplicateDistanceByType: Record<AmenityType, number> = {
+  ATM: 25,
+  Bank: 75,
+  "Community Centre": 100,
+  "Convenience Store": 50,
+  Hospital: 300,
+  Leisure: 250,
+  Library: 100,
+  "Health Centre": 200,
+  Nursery: 150,
+  Pharmacy: 100,
+  "Place of Worship": 120,
+  "Post Box": 15,
+  "Post Office": 75,
+  "Primary School": 400,
+  "Public House": 60,
+  "Secondary School": 400,
+  College: 400,
+  University: 600,
+};
 
 function isUkCoordinate(latitude: number, longitude: number) {
   return latitude >= 49.5 && latitude <= 61.2 && longitude >= -8.8 && longitude <= 2.1;
@@ -208,6 +235,17 @@ function formatPostcode(value?: string) {
   const compact = value.toUpperCase().replace(/\s+/g, "");
   const match = compact.match(/^([A-Z]{1,2}\d[A-Z\d]?)(\d[A-Z]{2})$/);
   return match ? `${match[1]} ${match[2]}` : value.trim().toUpperCase();
+}
+
+function mappedDate(value?: string) {
+  const match = value?.trim().match(/^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2] ?? "1");
+  const day = Number(match[3] ?? "1");
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return Date.UTC(year, month - 1, day);
 }
 
 function isInactiveFeature(tags: Record<string, string>) {
@@ -249,7 +287,20 @@ function isInactiveFeature(tags: Record<string, string>) {
     return true;
   }
 
-  return tags.opening_hours?.trim().toLowerCase() === "closed";
+  const openingHours = tags.opening_hours?.trim().toLowerCase();
+  if (["closed", "off", "no"].includes(openingHours ?? "")) return true;
+
+  const today = new Date();
+  const todayUtc = Date.UTC(
+    today.getUTCFullYear(),
+    today.getUTCMonth(),
+    today.getUTCDate(),
+  );
+  const endDate = mappedDate(tags.end_date);
+  if (endDate !== null && endDate <= todayUtc) return true;
+
+  const openingDate = mappedDate(tags.opening_date ?? tags.start_date);
+  return openingDate !== null && openingDate > todayUtc;
 }
 
 function hasMappedIdentity(tags: Record<string, string>) {
@@ -273,6 +324,29 @@ function hasBankOperationalDetails(tags: Record<string, string>) {
       tags["check_date:amenity"]?.trim() ||
       tags.survey_date?.trim(),
   );
+}
+
+function hasSufficientIdentity(
+  type: AmenityType,
+  tags: Record<string, string>,
+) {
+  if (type === "ATM") return true;
+  if (type === "Post Box") {
+    return Boolean(hasMappedIdentity(tags) || tags.ref?.trim());
+  }
+  if (type === "Post Office") {
+    return Boolean(
+      hasMappedIdentity(tags) ||
+        tags.ref?.trim() ||
+        tags["addr:postcode"]?.trim() ||
+        tags["addr:street"]?.trim(),
+    );
+  }
+
+  // Anonymous polygons and nodes are the main source of unusable, repeated
+  // results. A recognisable name, brand or operator is required for every
+  // other category before it is presented as a real-world destination.
+  return hasMappedIdentity(tags);
 }
 
 function classify(tags: Record<string, string>): AmenityType | null {
@@ -489,7 +563,7 @@ function toAmenities(
 
   const amenities: Amenity[] = [];
   const primaryType = classify(tags);
-  if (primaryType) {
+  if (primaryType && hasSufficientIdentity(primaryType, tags)) {
     const primary = createAmenity(
       element,
       primaryType,
@@ -902,6 +976,56 @@ function organisationNameKey(value: string) {
     .join(" ");
 }
 
+function amenityNameKey(type: AmenityType, value: string) {
+  const genericWordsByType: Partial<Record<AmenityType, Set<string>>> = {
+    "Primary School": new Set([
+      "academy",
+      "and",
+      "c",
+      "e",
+      "of",
+      "primary",
+      "school",
+      "the",
+    ]),
+    "Secondary School": new Set([
+      "academy",
+      "and",
+      "c",
+      "e",
+      "high",
+      "of",
+      "school",
+      "secondary",
+      "the",
+    ]),
+    Nursery: new Set(["and", "day", "nursery", "pre", "school", "the"]),
+    Leisure: new Set([
+      "and",
+      "centre",
+      "center",
+      "club",
+      "ground",
+      "park",
+      "recreation",
+      "sports",
+      "the",
+    ]),
+  };
+  const genericWords = genericWordsByType[type] ?? new Set<string>();
+
+  return normalisedName(value)
+    .replace(/\bsaint\b/g, "st")
+    .split(" ")
+    .filter((word) => word && !genericWords.has(word))
+    .join(" ");
+}
+
+function isGenericAmenityName(item: Amenity) {
+  const name = normalisedName(item.name);
+  return name === normalisedName(item.type) || name === "atm" || name === "post box";
+}
+
 function mergeDuplicate(candidate: Amenity, item: Amenity): Amenity {
   const ods = [candidate, item].find((record) => record.source === "nhs-ods");
   const osm = [candidate, item].find((record) => record.source === "osm");
@@ -952,6 +1076,23 @@ function deduplicate(amenities: Amenity[]) {
           item.longitude,
         );
         const sameName = normalisedName(candidate.name) === normalisedName(item.name);
+        const candidateAmenityKey = amenityNameKey(
+          candidate.type,
+          candidate.name,
+        );
+        const itemAmenityKey = amenityNameKey(item.type, item.name);
+        const sameAmenityName =
+          Boolean(candidateAmenityKey) &&
+          candidateAmenityKey === itemAmenityKey;
+        const duplicateDistanceM = duplicateDistanceByType[item.type];
+        const sameMappedPremises =
+          candidate.source === "osm" &&
+          item.source === "osm" &&
+          separationM < duplicateDistanceM &&
+          (sameName || sameAmenityName);
+        const sameGenericPoint =
+          separationM < Math.min(duplicateDistanceM, 25) &&
+          (isGenericAmenityName(candidate) || isGenericAmenityName(item));
         const crossSourceOdsPair =
           candidate.source !== item.source &&
           (candidate.source === "nhs-ods" || item.source === "nhs-ods");
@@ -969,7 +1110,8 @@ function deduplicate(amenities: Amenity[]) {
             item.name === item.type);
 
         return (
-          (sameName && separationM < (item.type === "Leisure" ? 250 : 35)) ||
+          sameMappedPremises ||
+          sameGenericPoint ||
           (crossSourceOdsPair &&
             separationM < 400 &&
             (sameName || sameOrganisationName)) ||

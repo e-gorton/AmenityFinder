@@ -672,6 +672,14 @@ export default function Home() {
               <span>{outsideCount ? `${outsideCount} nearest outside 2 km` : "All within 2 km"}</span>
             </div>
 
+            <p className="quality-note">
+              Only results passing quality screening are shown. Likely duplicate
+              map objects, anonymous low-confidence records and places explicitly
+              tagged as closed, former, demolished or not yet open are removed.
+              OpenStreetMap is not a live trading-status register, so professional
+              review is still recommended before issue.
+            </p>
+
             <ol className="results-list">
               {visibleAmenities.map((item) => {
                 const markerNumber = amenities.findIndex((candidate) => candidate.id === item.id) + 1;

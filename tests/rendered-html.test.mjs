@@ -203,4 +203,21 @@ test("supplements OSM with the national NHS GP and pharmacy register", async () 
   assert.match(page, /Reviewed supplementary amenity record/);
   assert.match(page, /spreadMarkerCoordinates/);
 });
+test("screens low-confidence, inactive and duplicate amenity records", async () => {
+  const [page, route] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/amenities/route.ts", import.meta.url), "utf8"),
+  ]);
 
+  assert.match(route, /function hasSufficientIdentity/);
+  assert.match(route, /function mappedDate/);
+  assert.match(route, /tags\.end_date/);
+  assert.match(route, /tags\.opening_date \?\? tags\.start_date/);
+  assert.match(route, /"proposed:"/);
+  assert.match(route, /const duplicateDistanceByType/);
+  assert.match(route, /"Primary School": 400/);
+  assert.match(route, /function amenityNameKey/);
+  assert.match(route, /sameMappedPremises/);
+  assert.match(page, /Only results passing quality screening are shown/);
+  assert.match(page, /not a live trading-status register/);
+});

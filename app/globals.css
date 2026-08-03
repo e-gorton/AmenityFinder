@@ -498,6 +498,16 @@ select:focus-visible {
   margin-bottom: 11px;
 }
 
+.quality-note {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--orange);
+  background: #fff8ed;
+  color: #5a4b3b;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
 .results-tools label {
   margin: 0;
 }
