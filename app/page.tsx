@@ -42,8 +42,6 @@ type Amenity = {
   name: string;
   postcode: string;
   postcodeSource: "osm" | "nearest" | "ods" | "verified" | "unavailable";
-  source: "osm" | "nhs-ods" | "verified";
-  sourceUpdatedOn?: string;
   latitude: number;
   longitude: number;
   distanceM: number;
@@ -52,7 +50,6 @@ type Amenity = {
 
 type AmenitiesResponse = {
   amenities?: Amenity[];
-  qualityFilteredCount?: number;
   warnings?: string[];
   error?: string;
 };
@@ -153,7 +150,6 @@ export default function Home() {
   const [pointName, setPointName] = useState("No point selected");
   const [coordinateInput, setCoordinateInput] = useState("");
   const [amenities, setAmenities] = useState<Amenity[]>([]);
-  const [qualityFilteredCount, setQualityFilteredCount] = useState(0);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [finding, setFinding] = useState(false);
@@ -201,7 +197,6 @@ export default function Home() {
           `${selectedPoint.latitude.toFixed(8)}, ${selectedPoint.longitude.toFixed(8)}`,
         );
         setAmenities([]);
-        setQualityFilteredCount(0);
         setWarnings([]);
         setError("");
         setWalkingResults({});
@@ -311,7 +306,6 @@ export default function Home() {
     setPointName(name);
     setCoordinateInput(`${nextPoint.latitude}, ${nextPoint.longitude}`);
     setAmenities([]);
-    setQualityFilteredCount(0);
     setWarnings([]);
     setError("");
     setWalkingResults({});
@@ -370,7 +364,6 @@ export default function Home() {
 
       const nextAmenities = data.amenities ?? [];
       setAmenities(nextAmenities);
-      setQualityFilteredCount(data.qualityFilteredCount ?? 0);
       setWarnings(data.warnings ?? []);
       const L = leafletRef.current;
       if (L && mapRef.current) {
@@ -387,7 +380,6 @@ export default function Home() {
       }
     } catch (searchError) {
       setAmenities([]);
-      setQualityFilteredCount(0);
       setError(
         searchError instanceof Error ? searchError.message : "Amenity search failed.",
       );
@@ -477,19 +469,6 @@ export default function Home() {
             Type: item.type,
             Name: item.name,
             Postcode: item.postcode,
-            Validation_Status:
-              item.source === "nhs-ods"
-                ? "Active official register"
-                : item.source === "verified"
-                  ? "Reviewed supplementary record"
-                  : "OSM quality-screened",
-            Data_Source:
-              item.source === "nhs-ods"
-                ? "NHS Organisation Data Service"
-                : item.source === "verified"
-                  ? "Reviewed supplementary register"
-                  : "OpenStreetMap",
-            Source_Updated: item.sourceUpdatedOn ?? null,
             Easting: easting,
             Northing: northing,
             Longitude_WGS84: item.longitude,
@@ -694,13 +673,11 @@ export default function Home() {
             </div>
 
             <p className="quality-note">
-              {qualityFilteredCount > 0
-                ? `${qualityFilteredCount} likely duplicate or low-confidence ${qualityFilteredCount === 1 ? "record was" : "records were"} removed. `
-                : "Only results passing quality screening are shown. "}
-              Commercial records are only rejected for age when they are over ten
-              years stale, lack operational detail and have no matching official
-              food-business record. OpenStreetMap is not a live trading-status
-              register, so professional review is still recommended before issue.
+              Only results passing quality screening are shown. Likely duplicate
+              map objects, anonymous low-confidence records and places explicitly
+              tagged as closed, former, demolished or not yet open are removed.
+              OpenStreetMap is not a live trading-status register, so professional
+              review is still recommended before issue.
             </p>
 
             <ol className="results-list">

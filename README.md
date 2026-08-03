@@ -7,7 +7,6 @@ A UK amenity screening tool for transport planning and development planning work
 - All standard amenity types are returned within a fixed 2 km straight-line radius.
 - Bank and Post Office are nearest-only categories. The closest mapped feature is returned even when it is outside 2 km, using staged searches up to 100 km.
 - Features carrying closed, disused, former, abandoned or other lifecycle tags are excluded. Bank points must also have a mapped name, brand or operator plus an operational/contact detail such as opening hours, telephone, website or survey/check date; low-confidence legacy bank points are ignored.
-- Overpass metadata supplies each OSM feature's last-edit date. A pub or convenience store is screened out only where it is more than ten years stale, has no address, contact, opening-hours, operator or brand evidence, and has no matching record in the live Food Standards Agency register. If the FSA service is unavailable, the OSM feature is retained and a warning is shown rather than treating missing corroboration as evidence of closure.
 - Quality screening is applied before display. Most categories require a recognisable name, brand or operator; proposed, under-construction, future-opening and ended records are excluded; and category-specific name/proximity rules collapse duplicate OSM nodes, buildings and campus polygons representing the same premises.
 - Post Box is limited to the two closest mapped boxes within 2 km.
 - ATM includes standalone OpenStreetMap `amenity=atm` features, ATMs mapped as `atm=yes` on another premises, and a small reviewed supplement for confirmed machines that are absent from OpenStreetMap.
@@ -50,9 +49,6 @@ The first three properties deliberately match the existing QGIS symbology workfl
 | `Type` | Fixed category value used for categorised symbology |
 | `Name` | Mapped name, brand/operator, or a category fallback |
 | `Postcode` | Premises postcode where mapped, otherwise the nearest available postcode |
-| `Validation_Status` | Quality-screening basis: OSM, active NHS register or reviewed supplementary record |
-| `Data_Source` | Source used for the returned facility |
-| `Source_Updated` | OSM last-edit or supplementary review date where available |
 | `Easting` | EPSG:27700 easting in metres |
 | `Northing` | EPSG:27700 northing in metres |
 | `Longitude_WGS84` | Original source longitude for traceability |
