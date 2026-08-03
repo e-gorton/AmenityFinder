@@ -5,6 +5,7 @@ export const runtime = "edge";
 const LOCAL_RADIUS_M = 2_000;
 const FALLBACK_RADII_M = [20_000, 100_000];
 const VERIFIED_AMENITY_MAX_AGE_MS = 548 * 24 * 60 * 60 * 1_000;
+const SPARSE_COMMERCIAL_MAX_AGE_MS = 10 * 365.25 * 24 * 60 * 60 * 1_000;
 // Public Overpass instances can take more than ten seconds to return this
 // multi-category query under normal load. Keep the client window slightly
 // beyond the query's own 35-second server limit so the response can arrive
@@ -44,6 +45,7 @@ type OsmElement = {
   lat?: number;
   lon?: number;
   center?: { lat: number; lon: number };
+  timestamp?: string;
   tags?: Record<string, string>;
 };
 
@@ -55,6 +57,7 @@ type Amenity = {
   postcodeSource: "osm" | "nearest" | "ods" | "verified" | "unavailable";
   source: "osm" | "nhs-ods" | "verified";
   geometrySource: "osm" | "postcode-centroid" | "verified";
+  sourceUpdatedOn?: string;
   latitude: number;
   longitude: number;
   distanceM: number;
@@ -80,7 +83,15 @@ type OdsOrganisation = {
   PrimaryRoleDescription?: string;
 };
 
+type FsaEstablishment = {
+  BusinessName?: string;
+  BusinessType?: string;
+  PostCode?: string;
+  geocode?: { latitude?: string; longitude?: string };
+};
+
 const ODS_API_BASE = "https://directory.spineservices.nhs.uk/ORD/2-0-0";
+const FSA_API_BASE = "https://api.ratings.food.gov.uk";
 const ODS_ROLE_TYPES: Record<string, AmenityType> = {
   RO96: "Health Centre",
   RO177: "Health Centre",
@@ -206,6 +217,11 @@ const duplicateDistanceByType: Record<AmenityType, number> = {
   College: 400,
   University: 600,
 };
+
+const commerciallyVolatileTypes = new Set<AmenityType>([
+  "Convenience Store",
+  "Public House",
+]);
 
 function isUkCoordinate(latitude: number, longitude: number) {
   return latitude >= 49.5 && latitude <= 61.2 && longitude >= -8.8 && longitude <= 2.1;
@@ -347,6 +363,74 @@ function hasSufficientIdentity(
   // results. A recognisable name, brand or operator is required for every
   // other category before it is presented as a real-world destination.
   return hasMappedIdentity(tags);
+}
+
+function hasOperationalEvidence(tags: Record<string, string>) {
+  return Boolean(
+    tags.brand?.trim() ||
+      tags.operator?.trim() ||
+      tags.opening_hours?.trim() ||
+      tags.phone?.trim() ||
+      tags["contact:phone"]?.trim() ||
+      tags.email?.trim() ||
+      tags["contact:email"]?.trim() ||
+      tags.website?.trim() ||
+      tags["contact:website"]?.trim() ||
+      tags["addr:housenumber"]?.trim() ||
+      tags["addr:street"]?.trim() ||
+      tags["addr:postcode"]?.trim(),
+  );
+}
+
+function latestMappedReviewTime(element: OsmElement) {
+  const tags = element.tags ?? {};
+  const candidates = [
+    tags.check_date,
+    tags["check_date:amenity"],
+    tags["check_date:shop"],
+    tags["check_date:opening_hours"],
+    tags.survey_date,
+    tags["survey:date"],
+    element.timestamp,
+  ]
+    .map(mappedDate)
+    .filter((value): value is number => value !== null);
+
+  return candidates.length ? Math.max(...candidates) : null;
+}
+
+function isStaleSparseCommercialFeature(
+  element: OsmElement,
+  type: AmenityType,
+  fsaEstablishments: FsaEstablishment[] | null,
+) {
+  if (!commerciallyVolatileTypes.has(type)) return false;
+  // When the corroborating register is unavailable, retain the OSM feature.
+  // Missing corroboration is only a negative signal when the register itself
+  // responded successfully.
+  if (fsaEstablishments === null) return false;
+
+  const tags = element.tags ?? {};
+  if (hasOperationalEvidence(tags)) return false;
+  if (matchesFsaEstablishment(element, fsaEstablishments)) return false;
+
+  const lastReviewed = latestMappedReviewTime(element);
+  return (
+    lastReviewed !== null &&
+    Date.now() - lastReviewed > SPARSE_COMMERCIAL_MAX_AGE_MS
+  );
+}
+
+function passesQualityScreen(
+  element: OsmElement,
+  type: AmenityType,
+  fsaEstablishments: FsaEstablishment[] | null,
+) {
+  const tags = element.tags ?? {};
+  return (
+    hasSufficientIdentity(type, tags) &&
+    !isStaleSparseCommercialFeature(element, type, fsaEstablishments)
+  );
 }
 
 function classify(tags: Record<string, string>): AmenityType | null {
@@ -515,6 +599,7 @@ function createAmenity(
     postcodeSource: postcode ? "osm" : "unavailable",
     source: "osm",
     geometrySource: "osm",
+    sourceUpdatedOn: element.timestamp?.slice(0, 10),
     latitude,
     longitude,
     distanceM,
@@ -545,6 +630,7 @@ function toVerifiedAmenities(originLatitude: number, originLongitude: number) {
         postcodeSource: "verified",
         source: "verified",
         geometrySource: "verified",
+        sourceUpdatedOn: record.verifiedOn,
         latitude: record.latitude,
         longitude: record.longitude,
         distanceM,
@@ -557,13 +643,17 @@ function toAmenities(
   element: OsmElement,
   originLatitude: number,
   originLongitude: number,
+  fsaEstablishments: FsaEstablishment[] | null = null,
 ): Amenity[] {
   const tags = element.tags ?? {};
   if (isInactiveFeature(tags)) return [];
 
   const amenities: Amenity[] = [];
   const primaryType = classify(tags);
-  if (primaryType && hasSufficientIdentity(primaryType, tags)) {
+  const primaryPassesQuality = Boolean(
+    primaryType && passesQualityScreen(element, primaryType, fsaEstablishments),
+  );
+  if (primaryType && primaryPassesQuality) {
     const primary = createAmenity(
       element,
       primaryType,
@@ -576,6 +666,7 @@ function toAmenities(
   const atmIsMappedOnCredibleHost =
     tags.atm?.trim().toLowerCase() === "yes" &&
     primaryType !== "ATM" &&
+    primaryPassesQuality &&
     (tags.amenity !== "bank" || primaryType === "Bank");
   if (atmIsMappedOnCredibleHost) {
     const attachedAtm = createAmenity(
@@ -590,6 +681,7 @@ function toAmenities(
   }
 
   const isDispensingMedicalCentre =
+    primaryPassesQuality &&
     primaryType === "Health Centre" &&
     ["yes", "only"].includes(tags.dispensing?.trim().toLowerCase() ?? "");
   const hasAttachedPharmacy =
@@ -623,7 +715,7 @@ function buildLocalQuery(latitude: number, longitude: number) {
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["social_facility"="day_care"];
   nwr(around:${LOCAL_RADIUS_M},${latitude},${longitude})["atm"="yes"];
 );
-out center;`;
+out center meta;`;
 }
 
 function buildNearestQuery(
@@ -643,7 +735,7 @@ function buildNearestQuery(
 (
   ${clauses}
 );
-out center;`;
+out center meta;`;
 }
 
 async function fetchWithTimeout(
@@ -658,6 +750,109 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function foodVenueNameKey(value: string) {
+  const genericWords = new Set([
+    "and",
+    "bar",
+    "food",
+    "hotel",
+    "inn",
+    "limited",
+    "ltd",
+    "pub",
+    "public",
+    "house",
+    "store",
+    "stores",
+    "the",
+    "wine",
+  ]);
+
+  return normalisedName(value)
+    .split(" ")
+    .filter((word) => word && !genericWords.has(word))
+    .join(" ");
+}
+
+function matchesFsaEstablishment(
+  element: OsmElement,
+  establishments: FsaEstablishment[],
+) {
+  const tags = element.tags ?? {};
+  const mappedVenueName = mappedName(tags);
+  const latitude = element.lat ?? element.center?.lat;
+  const longitude = element.lon ?? element.center?.lon;
+  if (!mappedVenueName || latitude === undefined || longitude === undefined) {
+    return false;
+  }
+
+  const mappedKey = foodVenueNameKey(mappedVenueName);
+  if (!mappedKey) return false;
+  const mappedPostcode = formatPostcode(tags["addr:postcode"]);
+
+  return establishments.some((establishment) => {
+    const establishmentKey = foodVenueNameKey(establishment.BusinessName ?? "");
+    const namesMatch =
+      Boolean(establishmentKey) &&
+      (mappedKey === establishmentKey ||
+        (Math.min(mappedKey.length, establishmentKey.length) >= 5 &&
+          (mappedKey.includes(establishmentKey) ||
+            establishmentKey.includes(mappedKey))));
+    if (!namesMatch) return false;
+
+    const establishmentLatitude = Number(establishment.geocode?.latitude);
+    const establishmentLongitude = Number(establishment.geocode?.longitude);
+    const hasCoordinates =
+      Number.isFinite(establishmentLatitude) &&
+      Number.isFinite(establishmentLongitude);
+    const closeCoordinates =
+      hasCoordinates &&
+      haversineMetres(
+        latitude,
+        longitude,
+        establishmentLatitude,
+        establishmentLongitude,
+      ) <= 150;
+    const samePostcode =
+      Boolean(mappedPostcode) &&
+      mappedPostcode === formatPostcode(establishment.PostCode);
+
+    return closeCoordinates || samePostcode;
+  });
+}
+
+async function fetchNearbyFsaEstablishments(
+  latitude: number,
+  longitude: number,
+) {
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    // FSA uses miles. Two miles comfortably covers the 2 km search circle and
+    // provides enough margin for minor geocoding differences.
+    maxDistanceLimit: "2",
+    pageSize: "5000",
+  });
+  const response = await fetchWithTimeout(
+    `${FSA_API_BASE}/Establishments?${params.toString()}`,
+    {
+      headers: {
+        Accept: "application/json",
+        "x-api-version": "2",
+        "User-Agent":
+          "AmenityFinder/1.0 (https://amenity-finder.e-gorton.workers.dev)",
+      },
+    },
+    12_000,
+  );
+
+  if (!response.ok) throw new Error(`FSA returned ${response.status}`);
+  const data = (await response.json()) as {
+    establishments?: FsaEstablishment[];
+  };
+  return data.establishments ?? [];
 }
 
 function odsDisplayName(value: string) {
@@ -1263,9 +1458,10 @@ export async function GET(request: Request) {
   const warnings: string[] = [];
 
   try {
-    const [osmResult, odsResult] = await Promise.allSettled([
+    const [osmResult, odsResult, fsaResult] = await Promise.allSettled([
       queryOverpass(buildLocalQuery(latitude, longitude)),
       fetchNhsOdsAmenities(latitude, longitude, warnings),
+      fetchNearbyFsaEstablishments(latitude, longitude),
     ]);
     const osmAvailable = osmResult.status === "fulfilled";
     const odsAvailable = odsResult.status === "fulfilled";
@@ -1273,6 +1469,9 @@ export async function GET(request: Request) {
       osmResult.status === "fulfilled" ? osmResult.value : [];
     const odsAmenities =
       odsResult.status === "fulfilled" ? odsResult.value : [];
+    const fsaAvailable = fsaResult.status === "fulfilled";
+    const fsaEstablishments =
+      fsaResult.status === "fulfilled" ? fsaResult.value : null;
 
     if (!osmAvailable) {
       warnings.push(
@@ -1284,11 +1483,24 @@ export async function GET(request: Request) {
         "The NHS GP and pharmacy register is temporarily unavailable. OpenStreetMap results are shown; try again before exporting.",
       );
     }
+    if (!fsaAvailable) {
+      warnings.push(
+        "The official food-business cross-check is temporarily unavailable. OpenStreetMap pubs and food shops are retained without the supplementary stale-record screen.",
+      );
+    }
 
+    const screenedOutCount = localElements.filter((element) => {
+      const type = classify(element.tags ?? {});
+      return (
+        type !== null &&
+        !passesQualityScreen(element, type, fsaEstablishments)
+      );
+    }).length;
+    const mappedLocalCandidates = localElements.flatMap((element) =>
+      toAmenities(element, latitude, longitude, fsaEstablishments),
+    );
     const localCandidates = [
-      ...localElements.flatMap((element) =>
-        toAmenities(element, latitude, longitude),
-      ),
+      ...mappedLocalCandidates,
       ...odsAmenities,
       ...toVerifiedAmenities(latitude, longitude),
     ]
@@ -1298,6 +1510,9 @@ export async function GET(request: Request) {
       latitude,
       longitude,
     );
+    const qualityFilteredCount =
+      screenedOutCount +
+      Math.max(0, localCandidates.length - deduplicatedLocalCandidates.length);
 
     const nearest = new Map<AmenityType, Amenity>();
     for (const type of nearestOnlyTypes) {
@@ -1317,7 +1532,7 @@ export async function GET(request: Request) {
           buildNearestQuery(latitude, longitude, radius, missingTypes),
         );
         fallbackCandidates = fallbackElements.flatMap((element) =>
-          toAmenities(element, latitude, longitude),
+          toAmenities(element, latitude, longitude, fsaEstablishments),
         );
       } catch {
         warnings.push(
@@ -1360,10 +1575,14 @@ export async function GET(request: Request) {
         point: { latitude, longitude },
         radiusM: LOCAL_RADIUS_M,
         amenities,
+        qualityFilteredCount,
         warnings,
         sources: [
           ...(osmAvailable ? ["OpenStreetMap via Overpass API"] : []),
           ...(odsAvailable ? ["NHS Organisation Data Service"] : []),
+          ...(fsaAvailable
+            ? ["Food Standards Agency register (validation only)"]
+            : []),
           "Reviewed supplementary amenity register",
           "Postcodes.io",
         ],
