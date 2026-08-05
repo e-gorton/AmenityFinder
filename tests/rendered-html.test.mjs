@@ -144,6 +144,26 @@ test("keeps every amenity category synchronised across API and interface", async
   assert.deepEqual(declaredAmenityTypes(page), expected);
 });
 
+test("classifies UK school phases and groups sixth forms with colleges", async () => {
+  const route = await readFile(
+    new URL("../app/api/amenities/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(route, /function schoolPhase/);
+  assert.match(route, /sixth form.*further education.*post 16/);
+  assert.match(route, /return "College"/);
+  assert.match(route, /high school\|higher school\|upper school\|senior school/);
+  assert.match(route, /iscedLevels\.has\("2"\)/);
+  assert.match(route, /iscedLevels\.has\("3"\)/);
+  assert.match(route, /minAge >= 11/);
+  assert.match(route, /maxAge >= 16/);
+  assert.match(route, /primary\|infant\|junior\|first school\|lower school/);
+  assert.match(route, /return "Secondary School";\s*\n}\s*\n\nfunction classify/);
+  assert.doesNotMatch(route, /sixth form\|academy/);
+  assert.match(route, /if \(amenity === "school"\) return schoolPhase\(tags\)/);
+});
+
 test("keeps walking routing optional and separate from immediate GeoJSON export", async () => {
   const [page, route, css] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),

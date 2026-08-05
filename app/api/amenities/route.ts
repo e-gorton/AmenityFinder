@@ -433,6 +433,82 @@ function passesQualityScreen(
   );
 }
 
+function schoolPhase(tags: Record<string, string>): AmenityType {
+  const phaseDescription = [
+    mappedName(tags),
+    tags.official_name,
+    tags.alt_name,
+    tags.short_name,
+    tags.designation,
+    tags.education,
+    tags["school:level"],
+    tags["school:type"],
+    tags["isced:level"],
+    tags.description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+
+  const schoolLevel = `${tags.education ?? ""} ${tags["school:level"] ?? ""}`
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+  const iscedLevels = new Set(
+    (tags["isced:level"] ?? "")
+      .split(/[;,]/)
+      .map((level) => level.trim())
+      .filter(Boolean),
+  );
+  const minAge = Number.parseInt(tags.min_age ?? tags["school:min_age"] ?? "", 10);
+  const maxAge = Number.parseInt(tags.max_age ?? tags["school:max_age"] ?? "", 10);
+
+  // Post-16 provision is exported with colleges so the fixed QGIS categories
+  // reflect how accessibility audits normally group sixth forms and FE sites.
+  if (
+    /\b(?:sixth form|6th form|further education|post 16|16 to 19|16 19)\b/.test(
+      phaseDescription,
+    ) ||
+    /\b(?:sixth form|further education|post secondary|college)\b/.test(
+      schoolLevel,
+    )
+  ) {
+    return "College";
+  }
+
+  // Check secondary evidence before primary evidence. This handles all-through
+  // descriptions and avoids labelling an upper phase as primary merely because
+  // the same OSM object also mentions a lower phase.
+  if (
+    /\b(?:secondary|high school|higher school|upper school|senior school|grammar school|comprehensive school|upper academy|secondary academy)\b/.test(
+      phaseDescription,
+    ) ||
+    /\b(?:secondary|high|higher|upper|senior)\b/.test(schoolLevel) ||
+    iscedLevels.has("2") ||
+    iscedLevels.has("3") ||
+    (Number.isFinite(minAge) && minAge >= 11) ||
+    (Number.isFinite(maxAge) && maxAge >= 16)
+  ) {
+    return "Secondary School";
+  }
+
+  if (
+    /\b(?:primary|infant|junior|first school|lower school|preparatory school|prep school)\b/.test(
+      phaseDescription,
+    ) ||
+    /\b(?:primary|infant|junior|first|lower)\b/.test(schoolLevel) ||
+    iscedLevels.has("1") ||
+    (Number.isFinite(maxAge) && maxAge <= 12)
+  ) {
+    return "Primary School";
+  }
+
+  // A primary school is normally identified as such in its mapped name. An
+  // otherwise unspecified UK school is therefore less misleading in the
+  // secondary category than the previous blanket primary fallback.
+  return "Secondary School";
+}
+
 function classify(tags: Record<string, string>): AmenityType | null {
   if (isInactiveFeature(tags)) return null;
 
@@ -511,25 +587,7 @@ function classify(tags: Record<string, string>): AmenityType | null {
   if (amenity === "pub") return "Public House";
   if (amenity === "college") return "College";
   if (amenity === "university") return "University";
-  if (amenity === "school") {
-    const schoolDescription = [
-      tags.name,
-      tags["school:level"],
-      tags["isced:level"],
-      tags.description,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    if (/primary|infant|junior|first school|isced.?1/.test(schoolDescription)) {
-      return "Primary School";
-    }
-    if (/secondary|high school|grammar|sixth form|academy|isced.?[23]/.test(schoolDescription)) {
-      return "Secondary School";
-    }
-    return "Primary School";
-  }
+  if (amenity === "school") return schoolPhase(tags);
 
   return null;
 }
