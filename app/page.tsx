@@ -2,7 +2,6 @@
 
 import type { CSSProperties, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import proj4 from "proj4";
 
 const WGS84_CRS = "EPSG:4326";
@@ -567,14 +566,15 @@ export default function Home() {
       <aside className="control-panel">
         <header className="brand-header">
           <div className="brand-lockup">
-            <Image
+            {/* The original transparent PNG is served directly because the Cloudflare
+                runtime does not expose Next.js' image-optimisation endpoint. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               className="prime-logo"
               src="/prime-transport-planning-logo.png"
               alt="Prime Transport Planning"
               width={1536}
               height={962}
-              priority
-              sizes="(max-width: 580px) 150px, 190px"
             />
             <div className="brand-product">
               <span>Local services audit</span>
