@@ -2,6 +2,7 @@
 
 import type { CSSProperties, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import proj4 from "proj4";
 
 const WGS84_CRS = "EPSG:4326";
@@ -238,10 +239,10 @@ export default function Home() {
     const layer = L.layerGroup([
       L.circle([point.latitude, point.longitude], {
         radius: LOCAL_RADIUS_M,
-        color: "#d88b00",
+        color: "#4e9528",
         weight: 2,
         opacity: 0.95,
-        fillColor: "#f2a900",
+        fillColor: "#7bc14e",
         fillOpacity: 0.075,
         dashArray: "8 7",
       }),
@@ -565,16 +566,21 @@ export default function Home() {
     <main className="app-shell">
       <aside className="control-panel">
         <header className="brand-header">
-          <div className="brand-kicker">
-            <span className="brand-mark" aria-hidden="true">
-              +
-            </span>
-            Local services audit
+          <div className="brand-lockup">
+            <Image
+              className="prime-logo"
+              src="/prime-transport-planning-logo.png"
+              alt="Prime Transport Planning"
+              width={1536}
+              height={962}
+              priority
+              sizes="(max-width: 580px) 150px, 190px"
+            />
+            <div className="brand-product">
+              <span>Local services audit</span>
+              <h1>Amenity Finder</h1>
+            </div>
           </div>
-          <h1>
-            Amenity
-            <span>Finder</span>
-          </h1>
           <p>
             Select one UK point. Export mapped facilities to GeoJSON immediately,
             with optional walking-route distances.
