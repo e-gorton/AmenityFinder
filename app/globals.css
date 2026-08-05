@@ -1,14 +1,14 @@
 :root {
-  --ink: #101820;
-  --ink-soft: #1c2a33;
-  --paper: #f3efe6;
-  --paper-deep: #e6e0d5;
-  --white: #fffdf9;
-  --amber: #f2a900;
-  --amber-dark: #c87900;
-  --slate: #647580;
-  --line: #d8d2c7;
-  --mint: #75c9a6;
+  --ink: #24417c;
+  --ink-soft: #183467;
+  --paper: #ffffff;
+  --paper-deep: #f3f7f0;
+  --white: #ffffff;
+  --amber: #7bc14e;
+  --amber-dark: #4e9528;
+  --slate: #60708a;
+  --line: #dce4ed;
+  --mint: #7bc14e;
   --error: #a63832;
 }
 
@@ -25,7 +25,7 @@ body {
 
 body {
   overflow: hidden;
-  background: var(--ink);
+  background: var(--white);
   color: var(--ink);
   font-family: Inter, Aptos, "Segoe UI", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -48,7 +48,7 @@ button:disabled {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 3px solid rgba(242, 169, 0, 0.38);
+  outline: 3px solid rgba(123, 193, 78, 0.4);
   outline-offset: 2px;
 }
 
@@ -66,91 +66,83 @@ select:focus-visible {
   z-index: 10;
   overflow-x: hidden;
   overflow-y: auto;
-  background:
-    linear-gradient(rgba(16, 24, 32, 0.025) 1px, transparent 1px),
-    var(--paper);
-  background-size: 100% 24px;
-  border-right: 1px solid rgba(16, 24, 32, 0.22);
-  box-shadow: 8px 0 32px rgba(16, 24, 32, 0.14);
-  scrollbar-color: #9d998f transparent;
+  background: var(--paper);
+  border-right: 1px solid var(--line);
+  box-shadow: 8px 0 32px rgba(36, 65, 124, 0.1);
+  scrollbar-color: #a7b5c7 transparent;
   scrollbar-width: thin;
 }
 
 .brand-header {
   position: relative;
   overflow: hidden;
-  padding: 32px 32px 30px;
-  background: var(--ink);
-  color: var(--white);
+  padding: 24px 28px 22px;
+  border-bottom: 6px solid var(--amber);
+  background: var(--white);
+  color: var(--ink);
 }
 
 .brand-header::after {
   position: absolute;
-  right: -44px;
-  bottom: -70px;
-  width: 190px;
-  height: 190px;
-  border: 1px solid rgba(242, 169, 0, 0.36);
+  right: -64px;
+  bottom: -96px;
+  width: 180px;
+  height: 180px;
+  border: 1px solid rgba(123, 193, 78, 0.28);
   border-radius: 50%;
   box-shadow:
-    0 0 0 25px rgba(242, 169, 0, 0.025),
-    0 0 0 52px rgba(242, 169, 0, 0.018);
+    0 0 0 25px rgba(123, 193, 78, 0.035),
+    0 0 0 52px rgba(36, 65, 124, 0.025);
   content: "";
 }
 
-.brand-kicker {
+.brand-lockup {
   display: flex;
   position: relative;
   z-index: 1;
-  align-items: center;
-  gap: 10px;
-  color: #afbbc2;
-  font-size: 0.7rem;
-  font-weight: 750;
-  letter-spacing: 0.17em;
-  text-transform: uppercase;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
 }
 
-.brand-mark {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border: 1px solid var(--amber);
-  border-radius: 50%;
-  color: var(--amber);
-  font-family: Georgia, serif;
-  font-size: 1.2rem;
-  font-weight: 400;
-  line-height: 1;
-}
-
-.brand-header h1 {
-  position: relative;
-  z-index: 1;
-  margin: 20px 0 13px;
-  color: var(--white);
-  font-family: "Arial Narrow", "Roboto Condensed", "Franklin Gothic Condensed", Impact, sans-serif;
-  font-size: clamp(3.25rem, 5.4vw, 4.6rem);
-  font-stretch: condensed;
-  font-weight: 900;
-  letter-spacing: -0.055em;
-  line-height: 0.78;
-  text-transform: uppercase;
-}
-
-.brand-header h1 span {
+.prime-logo {
   display: block;
+  width: min(190px, 55%);
+  height: auto;
+}
+
+.brand-product {
+  min-width: 0;
+  padding-bottom: 4px;
+  text-align: right;
+}
+
+.brand-product > span {
+  display: block;
+  margin-bottom: 5px;
   color: var(--amber);
+  font-size: 0.57rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.brand-product h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.2rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
 }
 
 .brand-header p {
   position: relative;
   z-index: 1;
-  max-width: 320px;
-  margin: 0;
-  color: #b9c2c8;
-  font-size: 0.84rem;
+  max-width: 350px;
+  margin: 17px 0 0;
+  color: #5d6e8b;
+  font-size: 0.78rem;
   line-height: 1.55;
 }
 
@@ -158,8 +150,9 @@ select:focus-visible {
   margin: 22px 22px 14px;
   padding: 20px;
   border: 1px solid var(--line);
-  background: rgba(255, 253, 249, 0.9);
-  box-shadow: 0 8px 22px rgba(39, 47, 52, 0.055);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 8px 22px rgba(36, 65, 124, 0.055);
 }
 
 .section-heading {
@@ -191,7 +184,7 @@ select:focus-visible {
 .results-tools label {
   display: block;
   margin-bottom: 7px;
-  color: #56646d;
+  color: #5d6e8b;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -203,8 +196,8 @@ select:focus-visible {
   min-width: 0;
   height: 44px;
   padding: 0 13px;
-  border: 1px solid #a9afb1;
-  border-radius: 0;
+  border: 1px solid #aebbd0;
+  border-radius: 4px;
   background: var(--white);
   color: var(--ink);
   font-family: Consolas, "Courier New", monospace;
@@ -246,13 +239,14 @@ select:focus-visible {
   gap: 11px;
   margin: 0 22px 14px;
   padding: 14px 15px;
-  border: 1px dashed #aaa69d;
-  background: rgba(255, 253, 249, 0.56);
+  border: 1px dashed #aebbd0;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
 .selected-point.is-set {
   border-style: solid;
-  border-color: #9aa6a6;
+  border-color: #aebbd0;
   background: var(--white);
 }
 
@@ -264,9 +258,9 @@ select:focus-visible {
 }
 
 .selected-point.is-set .point-status {
-  border-color: var(--ink);
+  border-color: var(--white);
   background: var(--amber);
-  box-shadow: 0 0 0 4px rgba(242, 169, 0, 0.16);
+  box-shadow: 0 0 0 2px var(--amber-dark), 0 0 0 5px rgba(123, 193, 78, 0.16);
 }
 
 .selected-point > div:nth-child(2) {
@@ -303,9 +297,10 @@ select:focus-visible {
   align-items: center;
   gap: 7px;
   padding: 0 9px;
-  border: 1px solid #929b9e;
-  background: #f7f6f2;
-  color: #45535a;
+  border: 1px solid #aebbd0;
+  border-radius: 4px;
+  background: var(--white);
+  color: var(--ink);
   font-size: 0.61rem;
   font-weight: 800;
   letter-spacing: 0.025em;
@@ -313,14 +308,14 @@ select:focus-visible {
 }
 
 .point-lock-toggle:hover {
-  border-color: var(--ink);
-  background: #eceeea;
+  border-color: var(--amber-dark);
+  background: #f3f9ef;
 }
 
 .point-lock-toggle.is-moving {
   border-color: var(--amber-dark);
-  background: #fff1cb;
-  color: #784900;
+  background: #edf7e7;
+  color: #315f1d;
 }
 
 .lock-glyph {
@@ -377,9 +372,10 @@ select:focus-visible {
   margin: 0 22px;
   padding: 0 18px;
   border: 1px solid var(--amber-dark);
+  border-radius: 5px;
   background: var(--amber);
-  color: var(--ink);
-  box-shadow: 0 5px 0 #b66e00;
+  color: #17320a;
+  box-shadow: 0 4px 0 #3e7c21;
   font-size: 0.83rem;
   font-weight: 850;
   letter-spacing: 0.035em;
@@ -387,14 +383,14 @@ select:focus-visible {
 }
 
 .find-button:hover:not(:disabled) {
-  background: #ffb71b;
+  background: #8dce64;
   transform: translateY(-1px);
-  box-shadow: 0 6px 0 #b66e00;
+  box-shadow: 0 5px 0 #3e7c21;
 }
 
 .find-button:active:not(:disabled) {
   transform: translateY(3px);
-  box-shadow: 0 2px 0 #b66e00;
+  box-shadow: 0 1px 0 #3e7c21;
 }
 
 .find-button:disabled {
@@ -442,7 +438,7 @@ select:focus-visible {
   margin: 0 22px 12px;
   padding: 11px 13px;
   border-left: 3px solid;
-  background: rgba(255, 253, 249, 0.75);
+  background: #f8fafc;
   font-size: 0.72rem;
   line-height: 1.45;
 }
@@ -454,14 +450,14 @@ select:focus-visible {
 
 .warning-message {
   border-color: var(--amber-dark);
-  color: #665126;
+  color: #315f1d;
 }
 
 .results-section {
   margin-top: 20px;
   padding: 24px 22px 28px;
-  border-top: 1px solid #c9c3b8;
-  background: rgba(230, 224, 213, 0.58);
+  border-top: 1px solid var(--line);
+  background: var(--paper-deep);
 }
 
 .results-title-row,
@@ -484,8 +480,10 @@ select:focus-visible {
   min-width: 34px;
   height: 27px;
   place-items: center;
-  border: 1px solid var(--ink);
-  color: var(--ink);
+  border: 1px solid var(--amber-dark);
+  border-radius: 4px;
+  background: var(--amber);
+  color: #17320a;
   font-family: "Arial Narrow", Impact, sans-serif;
   font-size: 0.9rem;
 }
@@ -501,9 +499,9 @@ select:focus-visible {
 .quality-note {
   margin: 0 0 14px;
   padding: 10px 12px;
-  border-left: 3px solid var(--orange);
-  background: #fff8ed;
-  color: #5a4b3b;
+  border-left: 3px solid var(--amber);
+  background: var(--white);
+  color: #4f607c;
   font-size: 0.76rem;
   line-height: 1.45;
 }
@@ -518,8 +516,8 @@ select:focus-visible {
   height: 34px;
   margin-top: 4px;
   padding: 0 26px 0 9px;
-  border: 1px solid #a8a39a;
-  border-radius: 0;
+  border: 1px solid #aebbd0;
+  border-radius: 4px;
   background: var(--white);
   color: var(--ink);
   font-size: 0.72rem;
@@ -556,14 +554,15 @@ select:focus-visible {
   gap: 10px;
   padding: 10px;
   border: 1px solid transparent;
-  background: rgba(255, 253, 249, 0.92);
+  border-radius: 5px;
+  background: var(--white);
   color: var(--ink);
   text-align: left;
 }
 
 .results-list button:hover {
-  border-color: #9d988f;
-  background: #ffffff;
+  border-color: var(--amber-dark);
+  background: #f9fcf7;
 }
 
 .result-number {
@@ -588,7 +587,7 @@ select:focus-visible {
 }
 
 .result-copy small {
-  color: #737e83;
+  color: #657796;
   font-size: 0.57rem;
   font-weight: 800;
   letter-spacing: 0.07em;
@@ -603,7 +602,7 @@ select:focus-visible {
 }
 
 .result-copy > span {
-  color: #6d777c;
+  color: #5d6e8b;
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.63rem;
 }
@@ -626,7 +625,7 @@ select:focus-visible {
 }
 
 .distance {
-  color: #536168;
+  color: #526583;
   font-size: 0.66rem;
   font-weight: 750;
   white-space: nowrap;
@@ -637,7 +636,7 @@ select:focus-visible {
   align-items: flex-end;
   flex-direction: column;
   gap: 2px;
-  color: #9b5e00;
+  color: var(--amber-dark);
   font-size: 0.55rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -658,7 +657,8 @@ select:focus-visible {
   gap: 8px;
   margin-top: 13px;
   padding: 13px 12px;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--ink-soft);
+  border-radius: 5px;
   background: var(--ink);
   color: var(--white);
   font-size: 0.73rem;
@@ -668,8 +668,8 @@ select:focus-visible {
 }
 
 .export-button:hover {
-  border-color: var(--amber-dark);
-  background: #263844;
+  border-color: var(--ink);
+  background: #315293;
 }
 
 .export-button span {
@@ -679,13 +679,13 @@ select:focus-visible {
 
 .export-note {
   margin: 10px 3px 0;
-  color: #727a7e;
+  color: #60708a;
   font-size: 0.62rem;
   line-height: 1.5;
 }
 
 .export-note code {
-  color: #34454e;
+  color: var(--ink);
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.62rem;
   font-weight: 700;
@@ -715,7 +715,7 @@ select:focus-visible {
 
 .walking-export > div:first-child span,
 .walking-export > p {
-  color: #727a7e;
+  color: #60708a;
   font-size: 0.62rem;
   line-height: 1.45;
 }
@@ -728,7 +728,8 @@ select:focus-visible {
 .csv-button {
   width: 100%;
   padding: 11px 12px;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--amber-dark);
+  border-radius: 5px;
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.03em;
@@ -736,13 +737,13 @@ select:focus-visible {
 }
 
 .walking-button {
-  background: transparent;
+  background: var(--white);
   color: var(--ink);
 }
 
 .walking-button:hover:not(:disabled) {
   border-color: var(--amber-dark);
-  background: #fff8e8;
+  background: #f1f9ec;
 }
 
 .walking-button:disabled {
@@ -751,14 +752,14 @@ select:focus-visible {
 }
 
 .csv-button {
-  border-color: #2f684f;
-  background: #2f684f;
+  border-color: var(--amber-dark);
+  background: var(--amber-dark);
   color: var(--white);
 }
 
 .csv-button:hover {
-  border-color: #23513d;
-  background: #23513d;
+  border-color: #3e7c21;
+  background: #3e7c21;
 }
 
 .walking-export > .message {
@@ -767,7 +768,7 @@ select:focus-visible {
 
 .panel-footer {
   padding: 18px 22px 24px;
-  color: #7c817f;
+  color: #657796;
   font-size: 0.57rem;
   line-height: 1.5;
 }
@@ -796,18 +797,18 @@ select:focus-visible {
 }
 
 .map-canvas .leaflet-tile-pane {
-  filter: saturate(0.68) contrast(0.94) brightness(1.03);
+  filter: saturate(0.72) contrast(0.95) brightness(1.035);
 }
 
 .map-canvas .leaflet-control-attribution {
   padding: 2px 7px;
-  background: rgba(255, 253, 249, 0.86);
+  background: rgba(255, 255, 255, 0.9);
   color: #566168;
   font-size: 9px;
 }
 
 .map-canvas .leaflet-control-attribution a {
-  color: #2f5f77;
+  color: var(--ink);
 }
 
 .map-canvas .leaflet-control-zoom {
@@ -837,11 +838,12 @@ select:focus-visible {
 
 .map-topbar > span {
   padding: 8px 10px;
-  border: 1px solid rgba(16, 24, 32, 0.18);
-  background: rgba(255, 253, 249, 0.9);
-  box-shadow: 0 4px 14px rgba(16, 24, 32, 0.08);
+  border: 1px solid rgba(36, 65, 124, 0.2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.93);
+  box-shadow: 0 4px 14px rgba(36, 65, 124, 0.1);
   backdrop-filter: blur(7px);
-  color: #354650;
+  color: var(--ink);
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -855,19 +857,19 @@ select:focus-visible {
   margin-right: 5px;
   border-radius: 50%;
   background: var(--mint);
-  box-shadow: 0 0 0 3px rgba(117, 201, 166, 0.2);
+  box-shadow: 0 0 0 3px rgba(123, 193, 78, 0.2);
 }
 
 .map-topbar > span.is-locked {
-  border-color: rgba(46, 108, 83, 0.32);
-  background: rgba(235, 248, 240, 0.93);
-  color: #2f684f;
+  border-color: rgba(78, 149, 40, 0.42);
+  background: rgba(241, 249, 236, 0.95);
+  color: #315f1d;
 }
 
 .map-topbar > span.is-moving {
-  border-color: rgba(183, 106, 0, 0.45);
-  background: rgba(255, 241, 203, 0.95);
-  color: #754600;
+  border-color: rgba(78, 149, 40, 0.48);
+  background: rgba(241, 249, 236, 0.96);
+  color: #315f1d;
 }
 
 .map-prompt {
@@ -881,8 +883,9 @@ select:focus-visible {
   padding: 22px 26px;
   transform: translate(-50%, -50%);
   border: 1px solid rgba(16, 24, 32, 0.16);
-  background: rgba(255, 253, 249, 0.92);
-  box-shadow: 0 12px 38px rgba(16, 24, 32, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 38px rgba(36, 65, 124, 0.18);
   backdrop-filter: blur(8px);
   pointer-events: none;
   text-align: center;
@@ -910,8 +913,9 @@ select:focus-visible {
   gap: 16px;
   padding: 10px 13px;
   border: 1px solid rgba(16, 24, 32, 0.17);
-  background: rgba(255, 253, 249, 0.91);
-  box-shadow: 0 5px 18px rgba(16, 24, 32, 0.1);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 5px 18px rgba(36, 65, 124, 0.11);
   backdrop-filter: blur(7px);
   pointer-events: none;
 }
@@ -954,8 +958,8 @@ select:focus-visible {
   bottom: 0;
   left: 0;
   padding: 5px 8px;
-  background: rgba(16, 24, 32, 0.84);
-  color: #d9dfe2;
+  background: rgba(36, 65, 124, 0.9);
+  color: var(--white);
   font-size: 0.55rem;
   letter-spacing: 0.015em;
   pointer-events: none;
@@ -975,10 +979,10 @@ select:focus-visible {
   place-items: center;
   border: 2px solid var(--amber);
   border-radius: 50%;
-  background: rgba(16, 24, 32, 0.91);
+  background: rgba(36, 65, 124, 0.94);
   box-shadow:
-    0 0 0 4px rgba(242, 169, 0, 0.18),
-    0 5px 12px rgba(16, 24, 32, 0.3);
+    0 0 0 4px rgba(123, 193, 78, 0.2),
+    0 5px 12px rgba(36, 65, 124, 0.3);
 }
 
 .centre-marker > span {
@@ -1050,7 +1054,7 @@ select:focus-visible {
 
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
-  border-radius: 0;
+  border-radius: 5px;
   background: var(--white);
 }
 
@@ -1072,12 +1076,15 @@ select:focus-visible {
   }
 
   .brand-header {
-    padding: 22px 24px 24px;
+    padding: 18px 22px 17px;
   }
 
-  .brand-header h1 {
-    margin-top: 14px;
-    font-size: 3rem;
+  .prime-logo {
+    width: min(170px, 52%);
+  }
+
+  .brand-product h1 {
+    font-size: 1.05rem;
   }
 
   .locator-card,
@@ -1111,6 +1118,18 @@ select:focus-visible {
 
   .brand-header p {
     max-width: 285px;
+  }
+
+  .brand-lockup {
+    align-items: center;
+  }
+
+  .prime-logo {
+    width: min(150px, 50%);
+  }
+
+  .brand-product > span {
+    font-size: 0.5rem;
   }
 
   .selected-point {
